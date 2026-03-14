@@ -4,7 +4,6 @@ import {
   Typography,
   LinearProgress,
   Box,
-  Chip,
   IconButton,
   Tooltip,
 } from '@mui/material';
@@ -38,39 +37,61 @@ export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCar
     targetAmount > 0 ? Math.min((currentAmount / targetAmount) * 100, 100) : null;
 
   return (
-    <Card>
-      <CardContent sx={{ p: 3 }}>
-        {/* En-tête de la card */}
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-          <Typography variant="h6" color="text.primary">
+    <Card
+      sx={{
+        height: '100%',
+        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        '&:hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: '0px 12px 40px rgba(0, 0, 0, 0.6)',
+        },
+      }}
+    >
+      <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+
+        {/* Header: name + allocation badge */}
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3}>
+          <Typography variant="subtitle1" fontWeight={600} color="text.primary">
             {name}
           </Typography>
-          <Chip
-            label={`${allocationPercentage}%`}
-            size="small"
-            color="primary"
-            variant="outlined"
-            sx={{ fontWeight: 600, borderRadius: 2 }}
-          />
+          <Box
+            sx={{
+              px: 1.25,
+              py: 0.25,
+              borderRadius: '20px',
+              bgcolor: 'rgba(77, 107, 255, 0.15)',
+              border: '1px solid rgba(77, 107, 255, 0.35)',
+              flexShrink: 0,
+              ml: 1,
+            }}
+          >
+            <Typography variant="caption" fontWeight={700} color="primary.light" lineHeight={1.6}>
+              {allocationPercentage}%
+            </Typography>
+          </Box>
         </Box>
 
-        {/* Montants */}
-        <Box mb={2}>
-          <Typography variant="h5" fontWeight={700} color="primary.main">
+        {/* Main amount */}
+        <Box mb={2.5} flex={1}>
+          <Typography variant="h4" fontWeight={700} color="text.primary" lineHeight={1.1}>
             {displayAmount(currentAmount)}
           </Typography>
-          <Typography variant="body2" color="text.secondary" mt={0.5}>
-            Objectif : {displayAmount(targetAmount)}
+          <Typography variant="caption" color="text.secondary" mt={0.75} display="block">
+            sur {displayAmount(targetAmount)}
           </Typography>
         </Box>
 
-        {/* Barre de progression */}
+        {/* Progress */}
         <Box>
-          <Box display="flex" justifyContent="space-between" mb={0.5}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
             <Typography variant="caption" color="text.secondary">
               Progression
             </Typography>
-            <Typography variant="caption" fontWeight={600} color="text.primary">
+            <Typography
+              variant="caption"
+              fontWeight={700}
+              color={progressValue != null && progressValue >= 100 ? 'secondary.main' : 'primary.light'}
+            >
               {progressValue != null ? `${progressValue.toFixed(1)}%` : '—'}
             </Typography>
           </Box>
@@ -78,35 +99,58 @@ export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCar
             variant="determinate"
             value={progressValue ?? 0}
             sx={{
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: 'rgba(77, 107, 255, 0.2)',
+              height: 5,
+              borderRadius: 3,
+              backgroundColor: 'rgba(255, 255, 255, 0.07)',
               '& .MuiLinearProgress-bar': {
-                borderRadius: 4,
+                borderRadius: 3,
+                background: 'linear-gradient(90deg, #4D6BFF 0%, #8A9EFF 100%)',
               },
             }}
           />
         </Box>
 
-        {/* Actions */}
+        {/* Actions footer */}
         {(onEdit || onDelete) && (
-          <Box display="flex" justifyContent="flex-end" gap={0.5} mt={1.5}>
+          <Box
+            display="flex"
+            justifyContent="flex-end"
+            gap={0.5}
+            mt={2.5}
+            pt={2}
+            sx={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}
+          >
             {onEdit && (
               <Tooltip title="Modifier l'enveloppe">
-                <IconButton size="small" onClick={onEdit}>
-                  <EditIcon fontSize="small" />
+                <IconButton
+                  size="small"
+                  onClick={onEdit}
+                  sx={{
+                    color: 'text.secondary',
+                    '&:hover': { color: 'primary.light', bgcolor: 'rgba(77, 107, 255, 0.12)' },
+                  }}
+                >
+                  <EditIcon sx={{ fontSize: 15 }} />
                 </IconButton>
               </Tooltip>
             )}
             {onDelete && (
               <Tooltip title="Supprimer l'enveloppe">
-                <IconButton size="small" color="error" onClick={onDelete}>
-                  <DeleteIcon fontSize="small" />
+                <IconButton
+                  size="small"
+                  onClick={onDelete}
+                  sx={{
+                    color: 'text.secondary',
+                    '&:hover': { color: 'error.main', bgcolor: 'rgba(211, 47, 47, 0.1)' },
+                  }}
+                >
+                  <DeleteIcon sx={{ fontSize: 15 }} />
                 </IconButton>
               </Tooltip>
             )}
           </Box>
         )}
+
       </CardContent>
     </Card>
   );

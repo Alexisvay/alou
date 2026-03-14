@@ -83,9 +83,10 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         if (cancelled) return;
 
         if (envelopes.length === 0) {
-          // Seed Supabase with mock envelopes for new users
-          await Promise.all(mockEnvelopes.map((e) => db.upsertEnvelope(userId, e, e.id)));
-          if (!cancelled) setBaseEnvelopes(mockEnvelopes);
+          // Seed with fresh UUIDs, then re-fetch to get the real DB rows
+          await Promise.all(mockEnvelopes.map((e) => db.upsertEnvelope(userId, e)));
+          const seeded = await db.fetchEnvelopes(userId);
+          if (!cancelled) setBaseEnvelopes(seeded);
         } else {
           setBaseEnvelopes(envelopes);
         }
@@ -127,14 +128,22 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           : [entry, ...prev],
       );
       setEditingIncome(null);
-      db.upsertIncome(userId, entry).catch(console.error);
+      db.upsertIncome(userId, entry).catch(async (err) => {
+        console.error('Failed to save income:', err);
+        const fresh = await db.fetchIncomes(userId).catch(() => null);
+        if (fresh) setIncomeHistory(fresh);
+      });
     },
     [userId, editingIncome],
   );
 
   const handleDeleteIncome = useCallback((id: string) => {
     setIncomeHistory((prev) => prev.filter((e) => e.id !== id));
-    db.deleteIncome(id).catch(console.error);
+    db.deleteIncome(id).catch(async (err) => {
+      console.error('Failed to delete income:', err);
+      const fresh = await db.fetchIncomes(userId).catch(() => null);
+      if (fresh) setIncomeHistory(fresh);
+    });
   }, [userId]);
 
   const handleIncomeDialogClose = useCallback(() => {
@@ -150,14 +159,22 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       setBaseEnvelopes((prev) =>
         id ? prev.map((e) => (e.id === id ? envelope : e)) : [...prev, envelope],
       );
-      db.upsertEnvelope(userId, data, newId).catch(console.error);
+      db.upsertEnvelope(userId, data, newId).catch(async (err) => {
+        console.error('Failed to save envelope:', err);
+        const fresh = await db.fetchEnvelopes(userId).catch(() => null);
+        if (fresh) setBaseEnvelopes(fresh);
+      });
     },
     [userId],
   );
 
   const handleDeleteEnvelope = useCallback((id: string) => {
     setBaseEnvelopes((prev) => prev.filter((e) => e.id !== id));
-    db.deleteEnvelope(id).catch(console.error);
+    db.deleteEnvelope(id).catch(async (err) => {
+      console.error('Failed to delete envelope:', err);
+      const fresh = await db.fetchEnvelopes(userId).catch(() => null);
+      if (fresh) setBaseEnvelopes(fresh);
+    });
   }, [userId]);
 
   const handleEnvelopeDialogClose = useCallback(() => {

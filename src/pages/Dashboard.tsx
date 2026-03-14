@@ -42,6 +42,14 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
+  // ── Scroll state for sticky header ────────────────────────────────────────
+  const [isScrolled, setIsScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 8);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   // ── User menu state ───────────────────────────────────────────────────────
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const displayName = userEmail.split('@')[0];
@@ -184,88 +192,106 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
   }
 
   return (
-    <Box px={{ xs: 2, sm: 4, md: 6 }} py={4} maxWidth={1100} mx="auto">
-      {/* Header */}
-      <Box mb={6}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.75}>
-          <Box display="flex" alignItems="center" gap={1.5}>
-            <Box
-              component="img"
-              src="/logo-alou.png"
-              alt="Alou"
-              sx={{
-                width: 36,
-                height: 36,
-                objectFit: 'contain',
-                display: 'block',
-                transform: 'translateY(1px)',
-              }}
-            />
-            <Typography variant="h4" fontWeight={700} color="text.primary">
-              Alou
-            </Typography>
-          </Box>
-
-        <Stack direction="row" gap={2} alignItems="center">
-          {/* User menu */}
-          <Stack
-            direction="row"
-            alignItems="center"
-            gap={0.75}
-            onClick={(e) => setMenuAnchor(e.currentTarget)}
-            sx={{ cursor: 'pointer', userSelect: 'none' }}
-          >
-            <Avatar
-              sx={{
-                width: 32,
-                height: 32,
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                bgcolor: 'rgba(77, 107, 255, 0.25)',
-                color: 'primary.light',
-                border: '1px solid rgba(77, 107, 255, 0.35)',
-              }}
-            >
-              {avatarLetter}
-            </Avatar>
-            <Typography variant="body2" fontWeight={600} color="text.primary">
-              {displayName}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" lineHeight={1}>▾</Typography>
-          </Stack>
-
-          <Menu
-            anchorEl={menuAnchor}
-            open={Boolean(menuAnchor)}
-            onClose={() => setMenuAnchor(null)}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-            slotProps={{
-              paper: {
-                sx: { minWidth: 220, mt: 1 },
-              },
-            }}
-          >
-            <Box px={2} py={1.25}>
-              <Typography variant="caption" color="text.secondary" display="block">
-                {userEmail}
+    <>
+      {/* Sticky header */}
+      <Box
+        component="header"
+        sx={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 1100,
+          transition: 'background-color 0.3s ease, backdrop-filter 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease',
+          bgcolor: isScrolled ? 'rgba(9, 13, 22, 0.82)' : 'transparent',
+          backdropFilter: isScrolled ? 'blur(14px)' : 'none',
+          WebkitBackdropFilter: isScrolled ? 'blur(14px)' : 'none',
+          borderBottom: isScrolled ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid transparent',
+          boxShadow: isScrolled ? '0 6px 24px rgba(0, 0, 0, 0.12)' : 'none',
+        }}
+      >
+        <Box px={{ xs: 2, sm: 4, md: 6 }} py={2} maxWidth={1100} mx="auto">
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+            <Box display="flex" alignItems="center" gap={1.5}>
+              <Box
+                component="img"
+                src="/logo-alou.png"
+                alt="Alou"
+                sx={{
+                  width: 32,
+                  height: 32,
+                  objectFit: 'contain',
+                  display: 'block',
+                  transform: 'translateY(1px)',
+                }}
+              />
+              <Typography variant="h4" fontWeight={700} color="text.primary">
+                Alou
               </Typography>
             </Box>
-            <Divider />
-            <MenuItem
-              onClick={() => { setMenuAnchor(null); onSignOut(); }}
-              sx={{ gap: 1.5, py: 1.25, color: 'error.main' }}
-            >
-              <LogoutIcon fontSize="small" />
-              <Typography variant="body2">Déconnexion</Typography>
-            </MenuItem>
-          </Menu>
-        </Stack>
+
+            <Stack direction="row" gap={2} alignItems="center">
+              {/* User menu */}
+              <Stack
+                direction="row"
+                alignItems="center"
+                gap={0.75}
+                onClick={(e) => setMenuAnchor(e.currentTarget)}
+                sx={{ cursor: 'pointer', userSelect: 'none' }}
+              >
+                <Avatar
+                  sx={{
+                    width: 30,
+                    height: 30,
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    bgcolor: 'rgba(77, 107, 255, 0.25)',
+                    color: 'primary.light',
+                    border: '1px solid rgba(77, 107, 255, 0.35)',
+                  }}
+                >
+                  {avatarLetter}
+                </Avatar>
+                <Typography variant="body2" fontWeight={600} color="text.primary">
+                  {displayName}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" lineHeight={1}>▾</Typography>
+              </Stack>
+
+              <Menu
+                anchorEl={menuAnchor}
+                open={Boolean(menuAnchor)}
+                onClose={() => setMenuAnchor(null)}
+                transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                slotProps={{
+                  paper: {
+                    sx: { minWidth: 220, mt: 1 },
+                  },
+                }}
+              >
+                <Box px={2} py={1.25}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {userEmail}
+                  </Typography>
+                </Box>
+                <Divider />
+                <MenuItem
+                  onClick={() => { setMenuAnchor(null); onSignOut(); }}
+                  sx={{ gap: 1.5, py: 1.25, color: 'error.main' }}
+                >
+                  <LogoutIcon fontSize="small" />
+                  <Typography variant="body2">Déconnexion</Typography>
+                </MenuItem>
+              </Menu>
+            </Stack>
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            Gérez vos enveloppes d'investissement et répartissez vos revenus intelligemment.
+          </Typography>
         </Box>
-        <Typography variant="body2" color="text.secondary" mt={0.5}>
-          Gérez vos enveloppes d'investissement et répartissez vos revenus intelligemment.
-        </Typography>
       </Box>
+
+      {/* Page content */}
+      <Box px={{ xs: 2, sm: 4, md: 6 }} pt={5} pb={10} maxWidth={1100} mx="auto">
 
       {/* Onboarding — shown only when the account is brand new */}
       {baseEnvelopes.length === 0 && incomeHistory.length === 0 && (
@@ -580,6 +606,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+      </Box>
+    </>
   );
 }

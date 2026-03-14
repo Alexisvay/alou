@@ -6,6 +6,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import PageHeader from '../components/PageHeader';
 import EnvelopeCard from '../components/EnvelopeCard';
 import IncomeDialog from '../components/IncomeDialog';
+import PortfolioChart from '../components/PortfolioChart';
 import { mockEnvelopes } from '../data/mockEnvelopes';
 import { type AllocationResult } from '../utils/calculateAllocation';
 import { type IncomeEntry } from '../types/income';
@@ -97,6 +98,11 @@ export default function Dashboard() {
           </Grid>
         ))}
       </Grid>
+
+      {/* Graphique de répartition */}
+      <Box mt={4}>
+        <PortfolioChart envelopes={envelopes} />
+      </Box>
 
       {/* Historique des revenus */}
       {incomeHistory.length > 0 && (

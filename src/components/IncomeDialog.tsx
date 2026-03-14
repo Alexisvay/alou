@@ -14,6 +14,7 @@ import {
 import EuroIcon from '@mui/icons-material/Euro';
 import { type ComputedEnvelope } from '../types/envelope';
 import { calculateAllocation, type AllocationResult } from '../utils/calculateAllocation';
+import { formatCurrency } from '../utils/format';
 
 interface IncomeDialogProps {
   open: boolean;
@@ -23,13 +24,6 @@ interface IncomeDialogProps {
   initialAmount?: number;
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 export default function IncomeDialog({ open, onClose, envelopes, onApply, initialAmount }: IncomeDialogProps) {
   const [incomeInput, setIncomeInput] = useState<string>('');
@@ -124,7 +118,7 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
                         {pct.toFixed(1)}%
                       </Typography>
                     </Box>
-                    <Typography variant="h6" fontWeight={700} color="white">
+                    <Typography variant="h5" color="white">
                       {formatCurrency(allocatedAmount)}
                     </Typography>
                   </Box>

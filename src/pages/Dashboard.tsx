@@ -21,7 +21,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LogoutIcon from '@mui/icons-material/Logout';
-import PageHeader from '../components/PageHeader';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import EnvelopeCard from '../components/EnvelopeCard';
 import IncomeDialog from '../components/IncomeDialog';
 import EnvelopeDialog from '../components/EnvelopeDialog';
@@ -32,27 +32,12 @@ import { recalculateEnvelopes, type AllocationResult } from '../utils/calculateA
 import { type Envelope } from '../types/envelope';
 import { type IncomeEntry } from '../types/income';
 import * as db from '../lib/db';
+import { formatCurrency, formatDate } from '../utils/format';
 
 interface DashboardProps {
   userId: string;
   userEmail: string;
   onSignOut: () => Promise<void>;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
 }
 
 export default function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
@@ -199,19 +184,12 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
   return (
     <Box px={{ xs: 2, sm: 4, md: 6 }} py={4} maxWidth={1100} mx="auto">
-      {/* Header + bouton revenu */}
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="flex-start"
-        flexWrap="wrap"
-        gap={2}
-        mb={4}
-      >
-        <PageHeader
-          title="Alou"
-          subtitle="Gérez vos enveloppes d'investissement et répartissez vos revenus intelligemment."
-        />
+      {/* Header */}
+      <Box mb={6}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.75}>
+          <Typography variant="h4" color="text.primary">
+            Alou
+          </Typography>
 
         <Stack direction="row" gap={2} alignItems="center">
           {/* User menu */}
@@ -268,14 +246,97 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
             </MenuItem>
           </Menu>
         </Stack>
+        </Box>
+        <Typography variant="body1" color="text.secondary">
+          Gérez vos enveloppes d'investissement et répartissez vos revenus intelligemment.
+        </Typography>
       </Box>
+
+      {/* Onboarding — shown only when the account is brand new */}
+      {baseEnvelopes.length === 0 && incomeHistory.length === 0 && (
+        <Paper
+          variant="outlined"
+          sx={{ p: { xs: 4, sm: 6 }, mb: 6, textAlign: 'center' }}
+        >
+          <Stack alignItems="center" spacing={3}>
+            <Box
+              sx={{
+                width: 64,
+                height: 64,
+                borderRadius: '50%',
+                bgcolor: 'rgba(77, 107, 255, 0.12)',
+                border: '1px solid rgba(77, 107, 255, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <AccountBalanceIcon sx={{ fontSize: 30, color: 'primary.light' }} />
+            </Box>
+
+            <Box>
+              <Typography variant="h5" fontWeight={700} mb={1}>
+                Bienvenue dans Alou
+              </Typography>
+              <Typography variant="body2" color="text.secondary" maxWidth={480} mx="auto">
+                Commencez par configurer vos enveloppes d'investissement, puis déclarez vos revenus pour suivre votre progression vers vos objectifs.
+              </Typography>
+            </Box>
+
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={2}
+              justifyContent="center"
+              sx={{ width: '100%', maxWidth: 480 }}
+            >
+              {[
+                { step: '1', label: 'Créez vos enveloppes' },
+                { step: '2', label: 'Déclarez vos revenus' },
+                { step: '3', label: 'Suivez votre progression' },
+              ].map(({ step, label }) => (
+                <Box
+                  key={step}
+                  flex={1}
+                  sx={{
+                    px: 2,
+                    py: 1.5,
+                    borderRadius: 2,
+                    bgcolor: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.07)',
+                  }}
+                >
+                  <Typography variant="caption" color="primary.light" fontWeight={700} display="block" mb={0.5}>
+                    Étape {step}
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {label}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<AddIcon />}
+              onClick={() => {
+                setEditingEnvelope(null);
+                setEnvelopeDialogOpen(true);
+              }}
+            >
+              Créer ma première enveloppe
+            </Button>
+          </Stack>
+        </Paper>
+      )}
 
       {/* Portfolio summary */}
       <PortfolioSummary envelopes={envelopes} />
 
       {/* Section enveloppes */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mt={4} mb={2}>
-        <Typography variant="h6" fontWeight={600}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mt={6} mb={2}>
+        <Typography variant="h6" display="flex" alignItems="center" gap={1}>
+          <AccountBalanceIcon fontSize="small" />
           Enveloppes
         </Typography>
         <Button
@@ -321,17 +382,21 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           sx={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
           gap={3}
         >
-          {envelopes.map((envelope) => (
-            <EnvelopeCard
-              key={envelope.id}
-              envelope={envelope}
-              onEdit={() => {
-                setEditingEnvelope(envelope);
-                setEnvelopeDialogOpen(true);
-              }}
-              onDelete={() => handleDeleteEnvelope(envelope.id)}
-            />
-          ))}
+          {(() => {
+            const portfolioTotal = envelopes.reduce((sum, e) => sum + (Number(e.currentAmount) || 0), 0);
+            return envelopes.map((envelope) => (
+              <EnvelopeCard
+                key={envelope.id}
+                envelope={envelope}
+                portfolioShare={portfolioTotal > 0 ? ((Number(envelope.currentAmount) || 0) / portfolioTotal) * 100 : undefined}
+                onEdit={() => {
+                  setEditingEnvelope(envelope);
+                  setEnvelopeDialogOpen(true);
+                }}
+                onDelete={() => handleDeleteEnvelope(envelope.id)}
+              />
+            ));
+          })()}
         </Box>
       )}
 
@@ -342,7 +407,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
       {/* Historique des revenus */}
       <Box mt={6}>
-        <Typography variant="h6" fontWeight={600} display="flex" alignItems="center" gap={1} mb={2}>
+        <Typography variant="h6" display="flex" alignItems="center" gap={1} mb={2}>
           <HistoryIcon fontSize="small" />
           Historique des revenus
         </Typography>
@@ -440,7 +505,13 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
             setEditingIncome(null);
             setIncomeDialogOpen(true);
           }}
-          sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000 }}
+          sx={{
+          position: 'fixed',
+          bottom: 32,
+          right: 32,
+            zIndex: 1000,
+            '&:hover': { filter: 'brightness(1.15)' },
+          }}
         >
           <AddIcon />
         </Fab>

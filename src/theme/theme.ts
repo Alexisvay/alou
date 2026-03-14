@@ -13,7 +13,7 @@ const theme = createTheme({
     },
     background: {
       default: '#0D1117',
-      paper: '#161B27',
+      paper: '#1C2230',
     },
     text: {
       primary: '#E8EEFF',
@@ -23,9 +23,26 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: '"DM Sans", "Helvetica Neue", Arial, sans-serif',
-    h4: {
+    // Number XL — dashboard totals
+    h3: {
+      fontSize: '2.5rem',
       fontWeight: 700,
+      letterSpacing: '-1px',
+      lineHeight: 1,
+    },
+    // Number L — envelope card amounts
+    h4: {
+      fontSize: '1.75rem',
+      fontWeight: 600,
       letterSpacing: '-0.5px',
+      lineHeight: 1.1,
+    },
+    // Number M — chart center, allocation amounts
+    h5: {
+      fontSize: '1.125rem',
+      fontWeight: 500,
+      letterSpacing: '-0.25px',
+      lineHeight: 1.2,
     },
     h6: {
       fontWeight: 600,
@@ -38,8 +55,8 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          boxShadow: '0px 4px 24px rgba(0, 0, 0, 0.5)',
-          border: '1px solid rgba(255, 255, 255, 0.07)',
+          boxShadow: '0px 4px 24px rgba(0, 0, 0, 0.4)',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
         },
       },
     },
@@ -56,8 +73,11 @@ const theme = createTheme({
     },
     MuiPaper: {
       styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+        },
         outlined: {
-          borderColor: 'rgba(255, 255, 255, 0.08)',
+          borderColor: 'rgba(255, 255, 255, 0.06)',
         },
       },
     },

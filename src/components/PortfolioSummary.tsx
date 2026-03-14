@@ -1,17 +1,11 @@
 import { Box, Paper, Typography, Stack, Divider } from '@mui/material';
 import { type ComputedEnvelope } from '../types/envelope';
+import { formatCurrency } from '../utils/format';
 
 interface PortfolioSummaryProps {
   envelopes: ComputedEnvelope[];
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 export default function PortfolioSummary({ envelopes }: PortfolioSummaryProps) {
   const totalCurrent = envelopes.reduce((sum, e) => sum + (Number(e.currentAmount) || 0), 0);
@@ -77,7 +71,7 @@ function Block({ label, value, valueColor = 'text.primary', flex = 1 }: BlockPro
       >
         {label}
       </Typography>
-      <Typography variant="h3" fontWeight={700} color={valueColor} lineHeight={1}>
+      <Typography variant="h3" color={valueColor}>
         {value}
       </Typography>
     </Box>

@@ -10,28 +10,18 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { type ComputedEnvelope } from '../types/envelope';
+import { formatCurrency, displayAmount } from '../utils/format';
 
 interface EnvelopeCardProps {
   envelope: ComputedEnvelope;
+  portfolioShare?: number;
   onEdit?: () => void;
   onDelete?: () => void;
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
-function displayAmount(value: number): string {
-  return Number.isFinite(value) && value > 0 ? formatCurrency(value) : '—';
-}
-
-export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCardProps) {
+export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelete }: EnvelopeCardProps) {
   const { name } = envelope;
-  const allocationPercentage = envelope.allocationPercentage ?? 0;
   const currentAmount = Number(envelope.currentAmount) || 0;
   const targetAmount = Number(envelope.targetAmount) || 0;
   const progressValue =
@@ -50,44 +40,51 @@ export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCar
     >
       <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
 
-        {/* Header: name + allocation badge */}
+        {/* Header: name + portfolio share badge */}
         <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3.5}>
           <Typography variant="h6" fontWeight={600} color="text.primary">
             {name}
           </Typography>
-          {allocationPercentage > 0 && (
-            <Box
-              sx={{
-                px: 1.25,
-                py: 0.25,
-                borderRadius: '20px',
-                bgcolor: 'rgba(77, 107, 255, 0.15)',
-                border: '1px solid rgba(77, 107, 255, 0.35)',
-                flexShrink: 0,
-                ml: 1,
-              }}
-            >
-              <Typography variant="caption" fontWeight={700} color="primary.light" lineHeight={1.6}>
-                {allocationPercentage}%
-              </Typography>
-            </Box>
+          {portfolioShare != null && portfolioShare > 0 && (
+            <Tooltip title="Part du portefeuille total" placement="top">
+              <Box
+                sx={{
+                  px: 1.25,
+                  py: 0.25,
+                  borderRadius: '20px',
+                  bgcolor: 'rgba(77, 107, 255, 0.15)',
+                  border: '1px solid rgba(77, 107, 255, 0.35)',
+                  flexShrink: 0,
+                  ml: 1,
+                }}
+              >
+                <Typography variant="caption" fontWeight={700} color="primary.light" lineHeight={1.6} noWrap>
+                  {portfolioShare.toFixed(1)}%
+                </Typography>
+              </Box>
+            </Tooltip>
           )}
         </Box>
 
         {/* Main amount */}
         <Box mb={3} flex={1}>
-          <Typography variant="h4" fontWeight={700} color="text.primary" lineHeight={1.1}>
+          <Typography variant="h4" color="text.primary">
             {displayAmount(currentAmount)}
           </Typography>
           <Typography variant="body2" color="text.secondary" mt={0.5} display="block">
             sur {displayAmount(targetAmount)}
           </Typography>
+          {targetAmount > currentAmount && (
+            <Typography variant="caption" color="text.disabled" mt={0.5} display="block">
+              reste : {formatCurrency(targetAmount - currentAmount)}
+            </Typography>
+          )}
         </Box>
 
         {/* Progress */}
         <Box>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-            <Typography variant="caption" color="text.secondary">
+          <Box display="flex" justifyContent="space-between" alignItems="baseline" mb={1}>
+            <Typography variant="caption" color="text.secondary" fontWeight={500}>
               Progression
             </Typography>
             <Typography
@@ -95,7 +92,7 @@ export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCar
               fontWeight={700}
               color={progressValue != null && progressValue >= 100 ? 'secondary.main' : 'primary.light'}
             >
-              {progressValue != null ? `${progressValue.toFixed(1)}%` : '—'}
+              {progressValue != null ? `${progressValue.toFixed(1)} %` : '—'}
             </Typography>
           </Box>
           <LinearProgress

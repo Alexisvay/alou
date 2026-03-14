@@ -19,7 +19,6 @@ interface EnvelopeCardProps {
   onDelete?: () => void;
 }
 
-
 export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelete }: EnvelopeCardProps) {
   const { name } = envelope;
   const currentAmount = Number(envelope.currentAmount) || 0;
@@ -34,31 +33,31 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
         transition: 'transform 0.15s ease, box-shadow 0.15s ease',
         '&:hover': {
           transform: 'translateY(-2px)',
-          boxShadow: '0px 12px 40px rgba(0, 0, 0, 0.6)',
+          boxShadow: '0px 8px 32px rgba(0, 0, 0, 0.5)',
         },
       }}
     >
       <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
 
         {/* Header: name + portfolio share badge */}
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3.5}>
-          <Typography variant="h6" fontWeight={600} color="text.primary">
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3}>
+          <Typography variant="h6" color="text.primary">
             {name}
           </Typography>
           {portfolioShare != null && portfolioShare > 0 && (
             <Tooltip title="Part du portefeuille total" placement="top">
               <Box
                 sx={{
-                  px: 1.25,
+                  px: 1,
                   py: 0.25,
                   borderRadius: '20px',
-                  bgcolor: 'rgba(77, 107, 255, 0.15)',
-                  border: '1px solid rgba(77, 107, 255, 0.35)',
+                  bgcolor: 'rgba(77, 107, 255, 0.12)',
+                  border: '1px solid rgba(77, 107, 255, 0.28)',
                   flexShrink: 0,
                   ml: 1,
                 }}
               >
-                <Typography variant="caption" fontWeight={700} color="primary.light" lineHeight={1.6} noWrap>
+                <Typography variant="caption" fontWeight={600} color="primary.light" lineHeight={1.6} noWrap>
                   {portfolioShare.toFixed(1)}%
                 </Typography>
               </Box>
@@ -67,7 +66,7 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
         </Box>
 
         {/* Main amount */}
-        <Box mb={3} flex={1}>
+        <Box mb={2.5} flex={1}>
           <Typography variant="h4" color="text.primary">
             {displayAmount(currentAmount)}
           </Typography>
@@ -99,14 +98,12 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
             variant="determinate"
             value={progressValue ?? 0}
             sx={{
-              height: 10,
-              borderRadius: 6,
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
-              boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.4)',
+              height: 6,
+              borderRadius: 4,
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
               '& .MuiLinearProgress-bar': {
-                borderRadius: 6,
-                background: 'linear-gradient(90deg, #5B7CFF 0%, #9AAAFF 100%)',
-                boxShadow: '0 0 8px rgba(91, 124, 255, 0.45)',
+                borderRadius: 4,
+                background: 'linear-gradient(90deg, #4D6BFF 0%, #8A9EFF 100%)',
               },
             }}
           />
@@ -118,9 +115,9 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
             display="flex"
             justifyContent="flex-end"
             gap={0.5}
-            mt={2.5}
-            pt={2}
-            sx={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}
+            mt={2}
+            pt={1.5}
+            sx={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}
           >
             {onEdit && (
               <Tooltip title="Modifier l'enveloppe">
@@ -129,10 +126,10 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
                   onClick={onEdit}
                   sx={{
                     color: 'text.secondary',
-                    '&:hover': { color: 'primary.light', bgcolor: 'rgba(77, 107, 255, 0.12)' },
+                    '&:hover': { color: 'primary.light', bgcolor: 'rgba(77, 107, 255, 0.1)' },
                   }}
                 >
-                  <EditIcon sx={{ fontSize: 15 }} />
+                  <EditIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </Tooltip>
             )}
@@ -143,10 +140,10 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
                   onClick={onDelete}
                   sx={{
                     color: 'text.secondary',
-                    '&:hover': { color: 'error.main', bgcolor: 'rgba(211, 47, 47, 0.1)' },
+                    '&:hover': { color: 'error.main', bgcolor: 'rgba(211, 47, 47, 0.08)' },
                   }}
                 >
-                  <DeleteIcon sx={{ fontSize: 15 }} />
+                  <DeleteIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </Tooltip>
             )}

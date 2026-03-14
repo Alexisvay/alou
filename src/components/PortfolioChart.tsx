@@ -1,7 +1,6 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { Box, Card, CardContent, Typography, Stack } from '@mui/material';
 import BarChartIcon from '@mui/icons-material/BarChart';
-import DonutLargeIcon from '@mui/icons-material/DonutLarge';
 import { type ComputedEnvelope } from '../types/envelope';
 import { formatCurrency, displayAmount } from '../utils/format';
 
@@ -10,7 +9,6 @@ interface PortfolioChartProps {
 }
 
 const COLORS = ['#3D5AFE', '#00BFA5', '#FF6B6B', '#FFB547', '#A78BFA', '#38BDF8'];
-
 
 interface TooltipPayloadItem {
   name: string;
@@ -30,7 +28,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Toolti
         borderRadius: 2,
         px: 2,
         py: 1.5,
-        boxShadow: '0px 4px 16px rgba(0,0,0,0.5)',
+        boxShadow: '0px 8px 24px rgba(0,0,0,0.5)',
       }}
     >
       <Typography variant="body2" fontWeight={600} color="text.primary">
@@ -56,13 +54,9 @@ export default function PortfolioChart({ envelopes }: PortfolioChartProps) {
     return (
       <Card>
         <CardContent sx={{ p: 3 }}>
-          <Typography variant="h6" display="flex" alignItems="center" gap={1} mb={2}>
-            <DonutLargeIcon fontSize="small" />
-            Répartition du portefeuille
-          </Typography>
-          <Stack alignItems="center" spacing={1.5} textAlign="center" py={4} sx={{ opacity: 0.45 }}>
-            <BarChartIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
-            <Typography variant="body1" fontWeight={600} color="text.secondary">
+          <Stack alignItems="center" spacing={1.5} textAlign="center" py={4} sx={{ opacity: 0.4 }}>
+            <BarChartIcon sx={{ fontSize: 36, color: 'text.secondary' }} />
+            <Typography variant="body2" fontWeight={600} color="text.secondary">
               Graphique non disponible
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -77,14 +71,14 @@ export default function PortfolioChart({ envelopes }: PortfolioChartProps) {
   return (
     <Card>
       <CardContent sx={{ p: 3 }}>
-        <Typography variant="h6" display="flex" alignItems="center" gap={1} mb={2}>
-          <DonutLargeIcon fontSize="small" />
-          Répartition du portefeuille
-        </Typography>
-
-        <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} alignItems="center" gap={6}>
-          {/* Donut */}
-          <Box position="relative" flexShrink={0} width={170} height={170}>
+        <Box
+          display="flex"
+          flexDirection={{ xs: 'column', sm: 'row' }}
+          alignItems={{ xs: 'center', sm: 'center' }}
+          gap={{ xs: 4, sm: 4 }}
+        >
+          {/* Col 1 — Donut */}
+          <Box position="relative" flexShrink={0} width={144} height={144}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -92,7 +86,7 @@ export default function PortfolioChart({ envelopes }: PortfolioChartProps) {
                   cx="50%"
                   cy="50%"
                   innerRadius={50}
-                  outerRadius={76}
+                  outerRadius={66}
                   paddingAngle={3}
                   dataKey="value"
                   strokeWidth={0}
@@ -105,47 +99,93 @@ export default function PortfolioChart({ envelopes }: PortfolioChartProps) {
               </PieChart>
             </ResponsiveContainer>
 
-            {/* Total au centre */}
+            {/* Center label */}
             <Box
               position="absolute"
               top="50%"
               left="50%"
-              sx={{ transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none', width: '100%' }}
+              sx={{
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center',
+                pointerEvents: 'none',
+                width: '100%',
+              }}
             >
-              <Typography variant="h5" color="text.primary" display="block" fontWeight={700} lineHeight={1.1}>
+              <Typography variant="h5" color="text.primary" display="block" lineHeight={1.1}>
                 {formatCurrency(total)}
               </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" mt={0.5} sx={{ fontSize: '0.65rem', letterSpacing: '0.04em' }}>
+              <Typography
+                display="block"
+                mt={0.5}
+                sx={{
+                  fontSize: '0.6rem',
+                  lineHeight: 1.3,
+                  color: 'text.disabled',
+                  letterSpacing: '0.01em',
+                }}
+              >
                 Patrimoine total
               </Typography>
             </Box>
           </Box>
 
-          {/* Légende */}
-          <Stack spacing={1.5} flex={1} width="100%">
-            {envelopes.map((env, index) => (
-              <Box key={env.id} display="flex" alignItems="center" gap={1.5}>
+          {/* Col 2+3 — Name | Amount / % */}
+          <Box flex={1} width="100%">
+            {envelopes.map((env, index) => {
+              const pct = total > 0 ? ((env.currentAmount / total) * 100).toFixed(1) : '0';
+              return (
                 <Box
+                  key={env.id}
+                  display="flex"
+                  alignItems="center"
+                  gap={1.5}
+                  py={1.125}
                   sx={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: '50%',
-                    bgcolor: COLORS[index % COLORS.length],
-                    flexShrink: 0,
+                    borderBottom: index < envelopes.length - 1
+                      ? '1px solid rgba(255, 255, 255, 0.05)'
+                      : 'none',
                   }}
-                />
-                <Typography variant="body2" color="text.primary" flex={1}>
-                  {env.name}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                  {total > 0 ? ((env.currentAmount / total) * 100).toFixed(1) : '0'}%
-                </Typography>
-                <Typography variant="body2" fontWeight={500} color="text.primary" minWidth={70} textAlign="right">
-                  {displayAmount(env.currentAmount)}
-                </Typography>
-              </Box>
-            ))}
-          </Stack>
+                >
+                  {/* Color dot */}
+                  <Box
+                    sx={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      bgcolor: COLORS[index % COLORS.length],
+                      flexShrink: 0,
+                    }}
+                  />
+
+                  {/* Name */}
+                  <Typography variant="body2" color="text.primary" flex={1}>
+                    {env.name}
+                  </Typography>
+
+                  {/* Amount + percentage stacked */}
+                  <Box textAlign="right" flexShrink={0}>
+                    <Typography
+                      variant="body2"
+                      fontWeight={700}
+                      color="text.primary"
+                      lineHeight={1.25}
+                      display="block"
+                    >
+                      {displayAmount(env.currentAmount)}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      lineHeight={1.25}
+                      display="block"
+                    >
+                      {pct}%
+                    </Typography>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
         </Box>
       </CardContent>
     </Card>

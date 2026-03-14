@@ -6,7 +6,6 @@ interface PortfolioSummaryProps {
   envelopes: ComputedEnvelope[];
 }
 
-
 export default function PortfolioSummary({ envelopes }: PortfolioSummaryProps) {
   const totalCurrent = envelopes.reduce((sum, e) => sum + (Number(e.currentAmount) || 0), 0);
   const totalTarget = envelopes.reduce((sum, e) => sum + (Number(e.targetAmount) || 0), 0);
@@ -17,14 +16,13 @@ export default function PortfolioSummary({ envelopes }: PortfolioSummaryProps) {
       variant="outlined"
       sx={{
         px: { xs: 3, sm: 5 },
-        py: 3,
-        mb: 4,
+        py: { xs: 3, sm: 4 },
       }}
     >
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         divider={<Divider orientation="vertical" flexItem />}
-        spacing={{ xs: 2, sm: 0 }}
+        spacing={{ xs: 3, sm: 0 }}
       >
         <Block
           label="Patrimoine total"
@@ -65,9 +63,9 @@ function Block({ label, value, valueColor = 'text.primary', flex = 1 }: BlockPro
       <Typography
         variant="caption"
         color="text.secondary"
-        sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.68rem' }}
+        sx={{ textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.65rem' }}
         display="block"
-        mb={1.25}
+        mb={1.5}
       >
         {label}
       </Typography>

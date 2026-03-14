@@ -22,6 +22,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import DonutLargeIcon from '@mui/icons-material/DonutLarge';
 import EnvelopeCard from '../components/EnvelopeCard';
 import IncomeDialog from '../components/IncomeDialog';
 import EnvelopeDialog from '../components/EnvelopeDialog';
@@ -261,7 +262,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           </Menu>
         </Stack>
         </Box>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body2" color="text.secondary" mt={0.5}>
           Gérez vos enveloppes d'investissement et répartissez vos revenus intelligemment.
         </Typography>
       </Box>
@@ -345,12 +346,14 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       )}
 
       {/* Portfolio summary */}
-      <PortfolioSummary envelopes={envelopes} />
+      <Box mb={4}>
+        <PortfolioSummary envelopes={envelopes} />
+      </Box>
 
       {/* Section enveloppes */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mt={6} mb={2}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mt={5} mb={2}>
         <Typography variant="h6" display="flex" alignItems="center" gap={1}>
-          <AccountBalanceIcon fontSize="small" />
+          <AccountBalanceIcon fontSize="small" sx={{ color: 'text.secondary' }} />
           Enveloppes
         </Typography>
         <Button
@@ -415,14 +418,18 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       )}
 
       {/* Graphique de répartition */}
-      <Box mt={6}>
+      <Box mt={5}>
+        <Typography variant="h6" display="flex" alignItems="center" gap={1} mb={2}>
+          <DonutLargeIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+          Répartition du portefeuille
+        </Typography>
         <PortfolioChart envelopes={envelopes} />
       </Box>
 
       {/* Historique des revenus */}
-      <Box mt={6}>
+      <Box mt={5}>
         <Typography variant="h6" display="flex" alignItems="center" gap={1} mb={2}>
-          <HistoryIcon fontSize="small" />
+          <HistoryIcon fontSize="small" sx={{ color: 'text.secondary' }} />
           Historique des revenus
         </Typography>
       {incomeHistory.length === 0 ? (
@@ -449,7 +456,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
             </Stack>
           </Paper>
         ) : (
-          <Paper variant="outlined" sx={{ p: 2 }}>
+          <Paper variant="outlined" sx={{ px: 0, py: 0, overflow: 'hidden' }}>
             <Stack divider={<Divider />} spacing={0}>
               {incomeHistory.map((entry) => (
                 <Box
@@ -458,51 +465,62 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
                   flexDirection={{ xs: 'column', sm: 'row' }}
                   justifyContent="space-between"
                   alignItems={{ xs: 'flex-start', sm: 'center' }}
-                  gap={1}
+                  gap={1.5}
+                  px={2.5}
                   py={2}
                 >
-                  <Box>
-                    <Typography variant="body1" fontWeight={600}>
+                  <Box minWidth={120}>
+                    <Typography variant="body2" fontWeight={700} color="text.primary">
                       {formatCurrency(entry.amount)}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="caption" color="text.secondary" display="block" mt={0.25}>
                       {formatDate(entry.date)}
                     </Typography>
                   </Box>
-                  <Stack direction="row" flexWrap="wrap" gap={1} useFlexGap alignItems="center">
+                  <Stack direction="row" flexWrap="wrap" gap={0.75} useFlexGap alignItems="center" flex={1}>
                     {entry.allocations.map(({ envelope, allocatedAmount }) => (
                       <Typography
                         key={envelope.id}
-                        variant="body2"
+                        variant="caption"
                         component="span"
-                        sx={{ px: 1.5, py: 0.5, borderRadius: 2, bgcolor: 'action.hover' }}
+                        fontWeight={500}
+                        sx={{
+                          px: 1.25,
+                          py: 0.4,
+                          borderRadius: '20px',
+                          bgcolor: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid rgba(255, 255, 255, 0.07)',
+                          color: 'text.secondary',
+                          whiteSpace: 'nowrap',
+                        }}
                       >
-                        {envelope.name}: {formatCurrency(allocatedAmount)}
+                        {envelope.name} · {formatCurrency(allocatedAmount)}
                       </Typography>
                     ))}
-                    <Box display="flex" gap={0.5} ml="auto">
-                      <Tooltip title="Modifier">
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setEditingIncome(entry);
-                            setIncomeDialogOpen(true);
-                          }}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Supprimer">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteIncome(entry.id)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
                   </Stack>
+                  <Box display="flex" gap={0.25} flexShrink={0}>
+                    <Tooltip title="Modifier">
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          setEditingIncome(entry);
+                          setIncomeDialogOpen(true);
+                        }}
+                        sx={{ color: 'text.secondary', '&:hover': { color: 'primary.light', bgcolor: 'rgba(77, 107, 255, 0.1)' } }}
+                      >
+                        <EditIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Supprimer">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteIncome(entry.id)}
+                        sx={{ color: 'text.secondary', '&:hover': { color: 'error.main', bgcolor: 'rgba(211, 47, 47, 0.08)' } }}
+                      >
+                        <DeleteIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                 </Box>
               ))}
             </Stack>
@@ -520,11 +538,14 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
             setIncomeDialogOpen(true);
           }}
           sx={{
-          position: 'fixed',
-          bottom: 32,
-          right: 32,
+            position: 'fixed',
+            bottom: 32,
+            right: 32,
             zIndex: 1000,
-            '&:hover': { filter: 'brightness(1.15)' },
+            '&:hover': {
+              boxShadow: '0px 6px 28px rgba(77, 107, 255, 0.5)',
+              bgcolor: 'primary.light',
+            },
           }}
         >
           <AddIcon />

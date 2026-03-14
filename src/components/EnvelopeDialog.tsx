@@ -99,12 +99,12 @@ export default function EnvelopeDialog({ open, onClose, onSave, initialEnvelope 
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
+      <DialogTitle>
         {isEditing ? "Modifier l'enveloppe" : "Nouvelle enveloppe"}
       </DialogTitle>
 
       <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
+        <Stack spacing={2} sx={{ mt: 0.5 }}>
           <TextField
             label="Nom"
             fullWidth
@@ -136,7 +136,7 @@ export default function EnvelopeDialog({ open, onClose, onSave, initialEnvelope 
         </Stack>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 2 }}>
+      <DialogActions>
         <Button onClick={handleClose} color="inherit">
           Annuler
         </Button>

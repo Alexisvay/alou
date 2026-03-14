@@ -24,7 +24,6 @@ interface IncomeDialogProps {
   initialAmount?: number;
 }
 
-
 export default function IncomeDialog({ open, onClose, envelopes, onApply, initialAmount }: IncomeDialogProps) {
   const [incomeInput, setIncomeInput] = useState<string>('');
 
@@ -62,12 +61,11 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
+      <DialogTitle>
         {isEditing ? 'Modifier le revenu' : 'Déclarer un revenu'}
       </DialogTitle>
 
       <DialogContent>
-        {/* Champ montant */}
         <TextField
           label="Montant"
           type="number"
@@ -78,15 +76,15 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
           InputProps={{
             startAdornment: <EuroIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />,
           }}
-          helperText="La répartition sera calculée automatiquement selon vos objectifs."
-          sx={{ mt: 1 }}
+          helperText="Répartition calculée automatiquement selon vos objectifs."
+          sx={{ mt: 0.5 }}
         />
 
         {/* Tous les objectifs atteints */}
         {allTargetsMet && (
           <Box mt={3}>
-            <Divider sx={{ mb: 2 }} />
-            <Typography variant="body2" color="text.secondary" textAlign="center" py={1}>
+            <Divider sx={{ mb: 2.5 }} />
+            <Typography variant="body2" color="text.secondary" textAlign="center" py={1.5}>
               Tous les objectifs sont atteints.
             </Typography>
           </Box>
@@ -95,11 +93,17 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
         {/* Résultats */}
         {results !== null && results.length > 0 && (
           <Box mt={3}>
-            <Divider sx={{ mb: 2 }} />
-            <Typography variant="subtitle2" color="text.secondary" mb={1.5}>
-              Répartition pour {formatCurrency(income)}
+            <Divider sx={{ mb: 2.5 }} />
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              display="block"
+              mb={2}
+              sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.65rem' }}
+            >
+              Répartition · {formatCurrency(income)}
             </Typography>
-            <Stack spacing={1.5}>
+            <Stack spacing={1}>
               {[...results].sort((a, b) => b.allocatedAmount - a.allocatedAmount).map(({ envelope, allocatedAmount }) => {
                 const pct = income > 0 ? (allocatedAmount / income) * 100 : 0;
                 return (
@@ -108,37 +112,34 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
                     display="flex"
                     justifyContent="space-between"
                     alignItems="center"
-                    sx={{ px: 2, py: 1.5, borderRadius: 3, bgcolor: 'primary.main' }}
+                    sx={{
+                      px: 2,
+                      py: 1.25,
+                      borderRadius: 2,
+                      bgcolor: 'rgba(77, 107, 255, 0.1)',
+                      border: '1px solid rgba(77, 107, 255, 0.2)',
+                    }}
                   >
                     <Box>
-                      <Typography variant="body2" fontWeight={600} color="white">
+                      <Typography variant="body2" fontWeight={600} color="text.primary">
                         {envelope.name}
                       </Typography>
-                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.75)' }}>
+                      <Typography variant="caption" color="text.secondary">
                         {pct.toFixed(1)}%
                       </Typography>
                     </Box>
-                    <Typography variant="h5" color="white">
+                    <Typography variant="h5" color="primary.light">
                       {formatCurrency(allocatedAmount)}
                     </Typography>
                   </Box>
                 );
               })}
             </Stack>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              display="block"
-              mt={2}
-              textAlign="center"
-            >
-              Répartition calculée automatiquement selon les objectifs restants.
-            </Typography>
           </Box>
         )}
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 2 }}>
+      <DialogActions>
         <Button onClick={handleClose} color="inherit">
           Fermer
         </Button>

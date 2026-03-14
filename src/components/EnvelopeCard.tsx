@@ -5,11 +5,17 @@ import {
   LinearProgress,
   Box,
   Chip,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
-import { type Envelope } from '../types/envelope';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { type ComputedEnvelope } from '../types/envelope';
 
 interface EnvelopeCardProps {
-  envelope: Envelope;
+  envelope: ComputedEnvelope;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 function formatCurrency(amount: number): string {
@@ -20,7 +26,7 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export default function EnvelopeCard({ envelope }: EnvelopeCardProps) {
+export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCardProps) {
   const { name, currentAmount, targetAmount, allocationPercentage } = envelope;
   const progressValue = Math.min((currentAmount / targetAmount) * 100, 100);
 
@@ -67,13 +73,33 @@ export default function EnvelopeCard({ envelope }: EnvelopeCardProps) {
             sx={{
               height: 8,
               borderRadius: 4,
-              backgroundColor: 'rgba(61, 90, 254, 0.12)',
+              backgroundColor: 'rgba(77, 107, 255, 0.2)',
               '& .MuiLinearProgress-bar': {
                 borderRadius: 4,
               },
             }}
           />
         </Box>
+
+        {/* Actions */}
+        {(onEdit || onDelete) && (
+          <Box display="flex" justifyContent="flex-end" gap={0.5} mt={1.5}>
+            {onEdit && (
+              <Tooltip title="Modifier l'enveloppe">
+                <IconButton size="small" onClick={onEdit}>
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            {onDelete && (
+              <Tooltip title="Supprimer l'enveloppe">
+                <IconButton size="small" color="error" onClick={onDelete}>
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        )}
       </CardContent>
     </Card>
   );

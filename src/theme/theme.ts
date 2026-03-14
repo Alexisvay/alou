@@ -2,23 +2,24 @@ import { createTheme } from '@mui/material/styles';
 
 const theme = createTheme({
   palette: {
-    mode: 'light',
+    mode: 'dark',
     primary: {
-      main: '#3D5AFE',
-      light: '#8187FF',
-      dark: '#0031CA',
+      main: '#4D6BFF',
+      light: '#8A9EFF',
+      dark: '#2C47D9',
     },
     secondary: {
       main: '#00BFA5',
     },
     background: {
-      default: '#F4F6FB',
-      paper: '#FFFFFF',
+      default: '#0D1117',
+      paper: '#161B27',
     },
     text: {
-      primary: '#1A1D2E',
-      secondary: '#6B7280',
+      primary: '#E8EEFF',
+      secondary: '#8892B0',
     },
+    divider: 'rgba(255, 255, 255, 0.08)',
   },
   typography: {
     fontFamily: '"DM Sans", "Helvetica Neue", Arial, sans-serif',
@@ -37,8 +38,8 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          boxShadow: '0px 2px 12px rgba(0, 0, 0, 0.06)',
-          border: '1px solid rgba(0,0,0,0.05)',
+          boxShadow: '0px 4px 24px rgba(0, 0, 0, 0.5)',
+          border: '1px solid rgba(255, 255, 255, 0.07)',
         },
       },
     },
@@ -50,6 +51,20 @@ const theme = createTheme({
           borderRadius: 12,
           paddingLeft: 20,
           paddingRight: 20,
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        outlined: {
+          borderColor: 'rgba(255, 255, 255, 0.08)',
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          backgroundImage: 'none',
         },
       },
     },

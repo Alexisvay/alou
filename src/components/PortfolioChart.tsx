@@ -1,9 +1,9 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { Box, Card, CardContent, Typography, Stack } from '@mui/material';
-import { type Envelope } from '../types/envelope';
+import { type ComputedEnvelope } from '../types/envelope';
 
 interface PortfolioChartProps {
-  envelopes: Envelope[];
+  envelopes: ComputedEnvelope[];
 }
 
 const COLORS = ['#3D5AFE', '#00BFA5', '#FF6B6B', '#FFB547', '#A78BFA', '#38BDF8'];
@@ -34,7 +34,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Toolti
         borderRadius: 2,
         px: 2,
         py: 1.5,
-        boxShadow: '0px 4px 16px rgba(0,0,0,0.08)',
+        boxShadow: '0px 4px 16px rgba(0,0,0,0.5)',
       }}
     >
       <Typography variant="body2" fontWeight={600} color="text.primary">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -20,6 +20,7 @@ interface IncomeDialogProps {
   onClose: () => void;
   envelopes: Envelope[];
   onApply?: (results: AllocationResult[]) => void;
+  initialAmount?: number;
 }
 
 function formatCurrency(amount: number): string {
@@ -30,10 +31,21 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export default function IncomeDialog({ open, onClose, envelopes, onApply }: IncomeDialogProps) {
+export default function IncomeDialog({ open, onClose, envelopes, onApply, initialAmount }: IncomeDialogProps) {
   const [incomeInput, setIncomeInput] = useState<string>('');
   const [results, setResults] = useState<AllocationResult[] | null>(null);
   const [error, setError] = useState<string>('');
+
+  const isEditing = initialAmount != null;
+
+  useEffect(() => {
+    if (open && initialAmount != null) {
+      setIncomeInput(String(initialAmount));
+      setResults(calculateAllocation(initialAmount, envelopes));
+      setError('');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialAmount]);
 
   const handleCalculate = () => {
     const income = parseFloat(incomeInput);
@@ -50,13 +62,17 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply }: Inco
   };
 
   const handleApply = () => {
-    if (results) {
-      onApply?.(results);
-      setIncomeInput('');
-      setResults(null);
-      setError('');
-      onClose();
+    const income = parseFloat(incomeInput);
+    if (!incomeInput || isNaN(income) || income <= 0) {
+      setError('Veuillez entrer un montant valide.');
+      return;
     }
+    const finalResults = calculateAllocation(income, envelopes);
+    setError('');
+    onApply?.(finalResults);
+    setIncomeInput('');
+    setResults(null);
+    onClose();
   };
 
   const handleClose = () => {
@@ -69,7 +85,7 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply }: Inco
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
-        Déclarer un revenu
+        {isEditing ? 'Modifier le revenu' : 'Déclarer un revenu'}
       </DialogTitle>
 
       <DialogContent>
@@ -79,7 +95,7 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply }: Inco
           type="number"
           fullWidth
           value={incomeInput}
-          onChange={(e) => setIncomeInput(e.target.value)}
+          onChange={(e) => { setIncomeInput(e.target.value); setResults(null); }}
           error={!!error}
           helperText={error || ' '}
           inputProps={{ min: 0, step: 1 }}
@@ -144,9 +160,9 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply }: Inco
         <Button onClick={handleClose} color="inherit">
           Fermer
         </Button>
-        {results && onApply && (
+        {onApply && (
           <Button variant="contained" onClick={handleApply}>
-            Appliquer
+            {isEditing ? 'Enregistrer' : 'Appliquer'}
           </Button>
         )}
       </DialogActions>

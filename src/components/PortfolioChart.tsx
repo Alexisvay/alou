@@ -16,6 +16,10 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+function displayAmount(value: number): string {
+  return Number.isFinite(value) && value > 0 ? formatCurrency(value) : '—';
+}
+
 interface TooltipPayloadItem {
   name: string;
   value: number;
@@ -41,7 +45,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Toolti
         {name}
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        {value}% · {formatCurrency(data.currentAmount)}
+        {value}% · {displayAmount(data.currentAmount)}
       </Typography>
     </Box>
   );
@@ -122,7 +126,7 @@ export default function PortfolioChart({ envelopes }: PortfolioChartProps) {
                   {env.allocationPercentage}%
                 </Typography>
                 <Typography variant="body2" fontWeight={600} color="text.primary" minWidth={70} textAlign="right">
-                  {formatCurrency(env.currentAmount)}
+                  {displayAmount(env.currentAmount)}
                 </Typography>
               </Box>
             ))}

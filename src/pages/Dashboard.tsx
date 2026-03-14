@@ -3,7 +3,6 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import {
   Box,
   Button,
-  Grid,
   Typography,
   Paper,
   Stack,
@@ -165,20 +164,23 @@ export default function Dashboard() {
       </Box>
 
       {/* Grille de cards */}
-      <Grid container spacing={3}>
+      <Box
+        display="grid"
+        sx={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
+        gap={3}
+      >
         {envelopes.map((envelope) => (
-          <Grid size={{ xs: 12, sm: 6, lg: 3 }} key={envelope.id}>
-            <EnvelopeCard
-              envelope={envelope}
-              onEdit={() => {
-                setEditingEnvelope(envelope);
-                setEnvelopeDialogOpen(true);
-              }}
-              onDelete={() => handleDeleteEnvelope(envelope.id)}
-            />
-          </Grid>
+          <EnvelopeCard
+            key={envelope.id}
+            envelope={envelope}
+            onEdit={() => {
+              setEditingEnvelope(envelope);
+              setEnvelopeDialogOpen(true);
+            }}
+            onDelete={() => handleDeleteEnvelope(envelope.id)}
+          />
         ))}
-      </Grid>
+      </Box>
 
       {/* Graphique de répartition */}
       <Box mt={4}>

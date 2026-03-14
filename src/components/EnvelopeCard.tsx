@@ -26,9 +26,16 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+function displayAmount(value: number): string {
+  return Number.isFinite(value) && value > 0 ? formatCurrency(value) : '—';
+}
+
 export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCardProps) {
-  const { name, currentAmount, targetAmount, allocationPercentage } = envelope;
-  const progressValue = Math.min((currentAmount / targetAmount) * 100, 100);
+  const { name, allocationPercentage } = envelope;
+  const currentAmount = Number(envelope.currentAmount) || 0;
+  const targetAmount = Number(envelope.targetAmount) || 0;
+  const progressValue =
+    targetAmount > 0 ? Math.min((currentAmount / targetAmount) * 100, 100) : null;
 
   return (
     <Card>
@@ -50,10 +57,10 @@ export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCar
         {/* Montants */}
         <Box mb={2}>
           <Typography variant="h5" fontWeight={700} color="primary.main">
-            {formatCurrency(currentAmount)}
+            {displayAmount(currentAmount)}
           </Typography>
           <Typography variant="body2" color="text.secondary" mt={0.5}>
-            Objectif : {formatCurrency(targetAmount)}
+            Objectif : {displayAmount(targetAmount)}
           </Typography>
         </Box>
 
@@ -64,12 +71,12 @@ export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCar
               Progression
             </Typography>
             <Typography variant="caption" fontWeight={600} color="text.primary">
-              {progressValue.toFixed(1)}%
+              {progressValue != null ? `${progressValue.toFixed(1)}%` : '—'}
             </Typography>
           </Box>
           <LinearProgress
             variant="determinate"
-            value={progressValue}
+            value={progressValue ?? 0}
             sx={{
               height: 8,
               borderRadius: 4,

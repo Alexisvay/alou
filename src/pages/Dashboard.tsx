@@ -187,9 +187,23 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       {/* Header */}
       <Box mb={6}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.75}>
-          <Typography variant="h4" color="text.primary">
-            Alou
-          </Typography>
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <Box
+              component="img"
+              src="/logo-alou.png"
+              alt="Alou"
+              sx={{
+                width: 36,
+                height: 36,
+                objectFit: 'contain',
+                display: 'block',
+                transform: 'translateY(1px)',
+              }}
+            />
+            <Typography variant="h4" fontWeight={700} color="text.primary">
+              Alou
+            </Typography>
+          </Box>
 
         <Stack direction="row" gap={2} alignItems="center">
           {/* User menu */}

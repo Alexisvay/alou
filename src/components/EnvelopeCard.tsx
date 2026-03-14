@@ -30,17 +30,21 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
     <Card
       sx={{
         height: '100%',
-        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
         '&:hover': {
           transform: 'translateY(-2px)',
-          boxShadow: '0px 8px 32px rgba(0, 0, 0, 0.5)',
+          borderColor: 'rgba(255, 255, 255, 0.14)',
+          boxShadow: [
+            '0px 10px 36px rgba(0, 0, 0, 0.5)',
+            'inset 0px 1px 0px rgba(255, 255, 255, 0.1)',
+          ].join(', '),
         },
       }}
     >
-      <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <CardContent sx={{ p: 3.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
 
         {/* Header: name + portfolio share badge */}
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3.5}>
           <Typography variant="h6" color="text.primary">
             {name}
           </Typography>
@@ -66,16 +70,34 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
         </Box>
 
         {/* Main amount */}
-        <Box mb={2.5} flex={1}>
-          <Typography variant="h4" color="text.primary">
+        <Box mb={3.5} flex={1}>
+          <Typography variant="h4" color="text.primary" fontWeight={700}>
             {displayAmount(currentAmount)}
           </Typography>
-          <Typography variant="body2" color="text.secondary" mt={0.5} display="block">
-            sur {displayAmount(targetAmount)}
+          <Typography
+            variant="caption"
+            color="text.disabled"
+            mt={1}
+            display="block"
+            sx={{ fontSize: '0.72rem' }}
+          >
+            <Box component="span" sx={{ opacity: 0.6 }}>sur</Box>
+            {' '}
+            <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+              {displayAmount(targetAmount)}
+            </Box>
           </Typography>
           {targetAmount > currentAmount && (
-            <Typography variant="caption" color="text.disabled" mt={0.5} display="block">
-              reste : {formatCurrency(targetAmount - currentAmount)}
+            <Typography
+              variant="caption"
+              color="text.disabled"
+              mt={0.5}
+              display="block"
+              sx={{ fontSize: '0.68rem', opacity: 0.7 }}
+            >
+              <Box component="span" sx={{ opacity: 0.7 }}>reste</Box>
+              {' '}
+              {formatCurrency(targetAmount - currentAmount)}
             </Typography>
           )}
         </Box>
@@ -83,13 +105,14 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
         {/* Progress */}
         <Box>
           <Box display="flex" justifyContent="space-between" alignItems="baseline" mb={1}>
-            <Typography variant="caption" color="text.secondary" fontWeight={500}>
+            <Typography variant="caption" color="text.disabled" fontWeight={400}>
               Progression
             </Typography>
             <Typography
               variant="caption"
-              fontWeight={700}
+              fontWeight={600}
               color={progressValue != null && progressValue >= 100 ? 'secondary.main' : 'primary.light'}
+              sx={{ opacity: 0.85 }}
             >
               {progressValue != null ? `${progressValue.toFixed(1)} %` : '—'}
             </Typography>
@@ -115,8 +138,8 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
             display="flex"
             justifyContent="flex-end"
             gap={0.5}
-            mt={2}
-            pt={1.5}
+            mt={3}
+            pt={2}
             sx={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}
           >
             {onEdit && (

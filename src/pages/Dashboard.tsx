@@ -14,6 +14,13 @@ import {
   TableRow,
   TableCell,
   CircularProgress,
+  Snackbar,
+  Alert,
+  Avatar,
+  Menu,
+  MenuItem,
+  TextField,
+  Fab,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import HistoryIcon from '@mui/icons-material/History';
@@ -28,6 +35,7 @@ import EnvelopeCard from '../components/EnvelopeCard';
 import IncomeDialog from '../components/IncomeDialog';
 import EnvelopeDialog from '../components/EnvelopeDialog';
 import PortfolioChart from '../components/PortfolioChart';
+import PortfolioSummary from '../components/PortfolioSummary';
 import { mockEnvelopes } from '../data/mockEnvelopes';
 import { recalculateEnvelopes, type AllocationResult } from '../utils/calculateAllocation';
 import { type Envelope } from '../types/envelope';
@@ -57,6 +65,11 @@ function formatDate(date: Date): string {
 }
 
 export default function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
+  // ── User menu state ───────────────────────────────────────────────────────
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const displayName = userEmail.split('@')[0];
+  const avatarLetter = displayName[0]?.toUpperCase() ?? '?';
+
   // ── Income dialog state ────────────────────────────────────────────────────
   const [incomeDialogOpen, setIncomeDialogOpen] = useState(false);
   const [editingIncome, setEditingIncome] = useState<IncomeEntry | null>(null);
@@ -64,6 +77,10 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
   // ── Envelope dialog state ─────────────────────────────────────────────────
   const [envelopeDialogOpen, setEnvelopeDialogOpen] = useState(false);
   const [editingEnvelope, setEditingEnvelope] = useState<Envelope | null>(null);
+
+  // ── Snackbar ──────────────────────────────────────────────────────────────
+  const [snackbar, setSnackbar] = useState({ open: false, message: '' });
+  const closeSnackbar = useCallback(() => setSnackbar((s) => ({ ...s, open: false })), []);
 
   // ── Remote data state ─────────────────────────────────────────────────────
   const [baseEnvelopes, setBaseEnvelopes] = useState<Envelope[]>([]);
@@ -128,6 +145,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           : [entry, ...prev],
       );
       setEditingIncome(null);
+      setSnackbar({ open: true, message: editingIncome ? 'Revenu modifié' : 'Revenu ajouté' });
       db.upsertIncome(userId, entry).catch(async (err) => {
         console.error('Failed to save income:', err);
         const fresh = await db.fetchIncomes(userId).catch(() => null);
@@ -139,6 +157,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
   const handleDeleteIncome = useCallback((id: string) => {
     setIncomeHistory((prev) => prev.filter((e) => e.id !== id));
+    setSnackbar({ open: true, message: 'Revenu supprimé' });
     db.deleteIncome(id).catch(async (err) => {
       console.error('Failed to delete income:', err);
       const fresh = await db.fetchIncomes(userId).catch(() => null);
@@ -159,6 +178,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       setBaseEnvelopes((prev) =>
         id ? prev.map((e) => (e.id === id ? envelope : e)) : [...prev, envelope],
       );
+      setSnackbar({ open: true, message: id ? 'Enveloppe modifiée' : 'Enveloppe créée' });
       db.upsertEnvelope(userId, data, newId).catch(async (err) => {
         console.error('Failed to save envelope:', err);
         const fresh = await db.fetchEnvelopes(userId).catch(() => null);
@@ -170,6 +190,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
   const handleDeleteEnvelope = useCallback((id: string) => {
     setBaseEnvelopes((prev) => prev.filter((e) => e.id !== id));
+    setSnackbar({ open: true, message: 'Enveloppe supprimée' });
     db.deleteEnvelope(id).catch(async (err) => {
       console.error('Failed to delete envelope:', err);
       const fresh = await db.fetchEnvelopes(userId).catch(() => null);
@@ -181,6 +202,24 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
     setEnvelopeDialogOpen(false);
     setEditingEnvelope(null);
   }, []);
+
+  // ── Inline table edit state ───────────────────────────────────────────────
+  const [inlineEdit, setInlineEdit] = useState<{
+    id: string;
+    field: 'targetAmount' | 'allocationPercentage';
+    value: string;
+  } | null>(null);
+
+  const commitInlineEdit = useCallback(() => {
+    if (!inlineEdit) return;
+    const env = baseEnvelopes.find((e) => e.id === inlineEdit.id);
+    if (!env) { setInlineEdit(null); return; }
+    const parsed = parseFloat(inlineEdit.value.replace(',', '.'));
+    if (!Number.isNaN(parsed) && parsed >= 0) {
+      handleSaveEnvelope({ ...env, [inlineEdit.field]: parsed }, env.id);
+    }
+    setInlineEdit(null);
+  }, [inlineEdit, baseEnvelopes, handleSaveEnvelope]);
 
   if (dataLoading) {
     return (
@@ -206,28 +245,68 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           subtitle="Gérez vos enveloppes d'investissement et répartissez vos revenus intelligemment."
         />
 
-        <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => {
-              setEditingIncome(null);
-              setIncomeDialogOpen(true);
-            }}
-            size="large"
+        <Stack direction="row" gap={2} alignItems="center">
+          {/* User menu */}
+          <Stack
+            direction="row"
+            alignItems="center"
+            gap={0.75}
+            onClick={(e) => setMenuAnchor(e.currentTarget)}
+            sx={{ cursor: 'pointer', userSelect: 'none' }}
           >
-            Déclarer un revenu
-          </Button>
-          <Tooltip title={`Déconnexion (${userEmail})`}>
-            <IconButton onClick={onSignOut} sx={{ color: 'text.secondary' }}>
+            <Avatar
+              sx={{
+                width: 32,
+                height: 32,
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                bgcolor: 'rgba(77, 107, 255, 0.25)',
+                color: 'primary.light',
+                border: '1px solid rgba(77, 107, 255, 0.35)',
+              }}
+            >
+              {avatarLetter}
+            </Avatar>
+            <Typography variant="body2" fontWeight={600} color="text.primary">
+              {displayName}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" lineHeight={1}>▾</Typography>
+          </Stack>
+
+          <Menu
+            anchorEl={menuAnchor}
+            open={Boolean(menuAnchor)}
+            onClose={() => setMenuAnchor(null)}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            slotProps={{
+              paper: {
+                sx: { minWidth: 220, mt: 1 },
+              },
+            }}
+          >
+            <Box px={2} py={1.25}>
+              <Typography variant="caption" color="text.secondary" display="block">
+                {userEmail}
+              </Typography>
+            </Box>
+            <Divider />
+            <MenuItem
+              onClick={() => { setMenuAnchor(null); onSignOut(); }}
+              sx={{ gap: 1.5, py: 1.25, color: 'error.main' }}
+            >
               <LogoutIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+              <Typography variant="body2">Déconnexion</Typography>
+            </MenuItem>
+          </Menu>
         </Stack>
       </Box>
 
+      {/* Portfolio summary */}
+      <PortfolioSummary envelopes={envelopes} />
+
       {/* Section enveloppes */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mt={4} mb={2}>
         <Typography variant="h6" fontWeight={600}>
           Enveloppes
         </Typography>
@@ -322,15 +401,55 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
                     <TableCell>
                       <Typography variant="body2" fontWeight={500}>{env.name}</Typography>
                     </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2" color="text.secondary">
-                        {formatCurrency(env.targetAmount)}
-                      </Typography>
+                    <TableCell
+                      align="right"
+                      onClick={() =>
+                        !inlineEdit &&
+                        setInlineEdit({ id: env.id, field: 'targetAmount', value: String(env.targetAmount) })
+                      }
+                      sx={{ cursor: 'text', minWidth: 110 }}
+                    >
+                      {inlineEdit?.id === env.id && inlineEdit.field === 'targetAmount' ? (
+                        <TextField
+                          autoFocus
+                          size="small"
+                          value={inlineEdit.value}
+                          onChange={(e) => setInlineEdit({ ...inlineEdit, value: e.target.value })}
+                          onBlur={commitInlineEdit}
+                          onKeyDown={(e) => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') setInlineEdit(null); }}
+                          inputProps={{ style: { textAlign: 'right' } }}
+                          sx={{ width: 100 }}
+                        />
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          {formatCurrency(env.targetAmount)}
+                        </Typography>
+                      )}
                     </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2" fontWeight={700} color="primary.light">
-                        {env.allocationPercentage}%
-                      </Typography>
+                    <TableCell
+                      align="right"
+                      onClick={() =>
+                        !inlineEdit &&
+                        setInlineEdit({ id: env.id, field: 'allocationPercentage', value: String(env.allocationPercentage) })
+                      }
+                      sx={{ cursor: 'text', minWidth: 90 }}
+                    >
+                      {inlineEdit?.id === env.id && inlineEdit.field === 'allocationPercentage' ? (
+                        <TextField
+                          autoFocus
+                          size="small"
+                          value={inlineEdit.value}
+                          onChange={(e) => setInlineEdit({ ...inlineEdit, value: e.target.value })}
+                          onBlur={commitInlineEdit}
+                          onKeyDown={(e) => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') setInlineEdit(null); }}
+                          inputProps={{ style: { textAlign: 'right' } }}
+                          sx={{ width: 72 }}
+                        />
+                      ) : (
+                        <Typography variant="body2" fontWeight={700} color="primary.light">
+                          {env.allocationPercentage}%
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell align="right" sx={{ pr: 1 }}>
                       <Tooltip title="Modifier">
@@ -358,17 +477,17 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       )}
 
       {/* Graphique de répartition */}
-      <Box mt={4}>
+      <Box mt={6}>
         <PortfolioChart envelopes={envelopes} />
       </Box>
 
       {/* Historique des revenus */}
+      <Box mt={6}>
+        <Typography variant="h6" fontWeight={600} display="flex" alignItems="center" gap={1} mb={2}>
+          <HistoryIcon fontSize="small" />
+          Historique des revenus
+        </Typography>
       {incomeHistory.length > 0 && (
-        <Box mt={6}>
-          <Typography variant="h6" fontWeight={600} mb={2} display="flex" alignItems="center" gap={1}>
-            <HistoryIcon fontSize="small" />
-            Historique des revenus
-          </Typography>
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Stack divider={<Divider />} spacing={0}>
               {incomeHistory.map((entry) => (
@@ -427,8 +546,23 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
               ))}
             </Stack>
           </Paper>
-        </Box>
       )}
+      </Box>
+
+      {/* FAB — Déclarer un revenu */}
+      <Tooltip title="Déclarer un revenu" placement="left">
+        <Fab
+          color="primary"
+          aria-label="Déclarer un revenu"
+          onClick={() => {
+            setEditingIncome(null);
+            setIncomeDialogOpen(true);
+          }}
+          sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000 }}
+        >
+          <AddIcon />
+        </Fab>
+      </Tooltip>
 
       {/* Income dialog */}
       <IncomeDialog
@@ -446,6 +580,18 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         onSave={handleSaveEnvelope}
         initialEnvelope={editingEnvelope ?? undefined}
       />
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={closeSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={closeSnackbar} severity="success" variant="filled" sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

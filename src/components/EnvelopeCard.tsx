@@ -50,8 +50,8 @@ export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCar
       <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
 
         {/* Header: name + allocation badge */}
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3}>
-          <Typography variant="subtitle1" fontWeight={600} color="text.primary">
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3.5}>
+          <Typography variant="h6" fontWeight={600} color="text.primary">
             {name}
           </Typography>
           <Box
@@ -72,11 +72,11 @@ export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCar
         </Box>
 
         {/* Main amount */}
-        <Box mb={2.5} flex={1}>
+        <Box mb={3} flex={1}>
           <Typography variant="h4" fontWeight={700} color="text.primary" lineHeight={1.1}>
             {displayAmount(currentAmount)}
           </Typography>
-          <Typography variant="caption" color="text.secondary" mt={0.75} display="block">
+          <Typography variant="body2" color="text.secondary" mt={0.5} display="block">
             sur {displayAmount(targetAmount)}
           </Typography>
         </Box>
@@ -99,12 +99,14 @@ export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCar
             variant="determinate"
             value={progressValue ?? 0}
             sx={{
-              height: 5,
-              borderRadius: 3,
-              backgroundColor: 'rgba(255, 255, 255, 0.07)',
+              height: 10,
+              borderRadius: 6,
+              backgroundColor: 'rgba(255, 255, 255, 0.04)',
+              boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.4)',
               '& .MuiLinearProgress-bar': {
-                borderRadius: 3,
-                background: 'linear-gradient(90deg, #4D6BFF 0%, #8A9EFF 100%)',
+                borderRadius: 6,
+                background: 'linear-gradient(90deg, #5B7CFF 0%, #9AAAFF 100%)',
+                boxShadow: '0 0 8px rgba(91, 124, 255, 0.45)',
               },
             }}
           />

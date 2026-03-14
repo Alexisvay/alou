@@ -6,13 +6,27 @@ export interface AllocationResult {
   allocatedAmount: number;
 }
 
+/**
+ * Distributes income proportionally to each envelope's remaining gap
+ * (targetAmount - currentAmount). Envelopes that have reached their target
+ * are ignored. Returns an empty array when all targets are already met.
+ */
 export function calculateAllocation(
   income: number,
-  envelopes: Envelope[]
+  envelopes: ComputedEnvelope[],
 ): AllocationResult[] {
-  return envelopes.map((envelope) => ({
+  const candidates = envelopes.map((e) => ({
+    envelope: e as Envelope,
+    remaining: Math.max(e.targetAmount - e.currentAmount, 0),
+  })).filter((c) => c.remaining > 0);
+
+  const totalRemaining = candidates.reduce((sum, c) => sum + c.remaining, 0);
+
+  if (totalRemaining === 0) return [];
+
+  return candidates.map(({ envelope, remaining }) => ({
     envelope,
-    allocatedAmount: (income * envelope.allocationPercentage) / 100,
+    allocatedAmount: (remaining / totalRemaining) * income,
   }));
 }
 

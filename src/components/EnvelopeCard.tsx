@@ -30,7 +30,8 @@ function displayAmount(value: number): string {
 }
 
 export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCardProps) {
-  const { name, allocationPercentage } = envelope;
+  const { name } = envelope;
+  const allocationPercentage = envelope.allocationPercentage ?? 0;
   const currentAmount = Number(envelope.currentAmount) || 0;
   const targetAmount = Number(envelope.targetAmount) || 0;
   const progressValue =
@@ -54,21 +55,23 @@ export default function EnvelopeCard({ envelope, onEdit, onDelete }: EnvelopeCar
           <Typography variant="h6" fontWeight={600} color="text.primary">
             {name}
           </Typography>
-          <Box
-            sx={{
-              px: 1.25,
-              py: 0.25,
-              borderRadius: '20px',
-              bgcolor: 'rgba(77, 107, 255, 0.15)',
-              border: '1px solid rgba(77, 107, 255, 0.35)',
-              flexShrink: 0,
-              ml: 1,
-            }}
-          >
-            <Typography variant="caption" fontWeight={700} color="primary.light" lineHeight={1.6}>
-              {allocationPercentage}%
-            </Typography>
-          </Box>
+          {allocationPercentage > 0 && (
+            <Box
+              sx={{
+                px: 1.25,
+                py: 0.25,
+                borderRadius: '20px',
+                bgcolor: 'rgba(77, 107, 255, 0.15)',
+                border: '1px solid rgba(77, 107, 255, 0.35)',
+                flexShrink: 0,
+                ml: 1,
+              }}
+            >
+              <Typography variant="caption" fontWeight={700} color="primary.light" lineHeight={1.6}>
+                {allocationPercentage}%
+              </Typography>
+            </Box>
+          )}
         </Box>
 
         {/* Main amount */}

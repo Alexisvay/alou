@@ -33,7 +33,7 @@ export async function upsertEnvelope(
     name: data.name,
     base_amount: data.baseAmount,
     target_amount: data.targetAmount,
-    allocation_percentage: data.allocationPercentage,
+    allocation_percentage: data.allocationPercentage ?? 0,
   };
 
   const { data: saved, error } = await supabase

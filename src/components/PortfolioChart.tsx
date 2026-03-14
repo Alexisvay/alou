@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { Box, Card, CardContent, Typography, Stack } from '@mui/material';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import { type ComputedEnvelope } from '../types/envelope';
 
 interface PortfolioChartProps {
@@ -23,7 +24,7 @@ function displayAmount(value: number): string {
 interface TooltipPayloadItem {
   name: string;
   value: number;
-  payload: { currentAmount: number };
+  payload: { pct: number };
 }
 
 function CustomTooltip({ active, payload }: { active?: boolean; payload?: TooltipPayloadItem[] }) {
@@ -45,20 +46,41 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Toolti
         {name}
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        {value}% · {displayAmount(data.currentAmount)}
+        {data.pct.toFixed(1)}% · {displayAmount(value)}
       </Typography>
     </Box>
   );
 }
 
 export default function PortfolioChart({ envelopes }: PortfolioChartProps) {
+  const total = envelopes.reduce((sum, env) => sum + env.currentAmount, 0);
+
   const data = envelopes.map((env) => ({
     name: env.name,
-    value: env.allocationPercentage,
-    currentAmount: env.currentAmount,
+    value: env.currentAmount,
+    pct: total > 0 ? (env.currentAmount / total) * 100 : 0,
   }));
 
-  const total = envelopes.reduce((sum, env) => sum + env.currentAmount, 0);
+  if (total === 0) {
+    return (
+      <Card>
+        <CardContent sx={{ p: 3 }}>
+          <Typography variant="h6" fontWeight={600} mb={3}>
+            Répartition du portefeuille
+          </Typography>
+          <Stack alignItems="center" spacing={1.5} textAlign="center" py={4} sx={{ opacity: 0.45 }}>
+            <BarChartIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
+            <Typography variant="body1" fontWeight={600} color="text.secondary">
+              Graphique non disponible
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Le graphique apparaîtra après vos premiers revenus.
+            </Typography>
+          </Stack>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -123,7 +145,7 @@ export default function PortfolioChart({ envelopes }: PortfolioChartProps) {
                   {env.name}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                  {env.allocationPercentage}%
+                  {total > 0 ? ((env.currentAmount / total) * 100).toFixed(1) : '0'}%
                 </Typography>
                 <Typography variant="body2" fontWeight={600} color="text.primary" minWidth={70} textAlign="right">
                   {displayAmount(env.currentAmount)}

@@ -3,7 +3,7 @@ export interface Envelope {
   name: string;
   baseAmount: number;
   targetAmount: number;
-  allocationPercentage: number;
+  allocationPercentage?: number;
 }
 
 /** Envelope with currentAmount derived from baseAmount + income allocations. */

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -12,13 +12,13 @@ import {
   Stack,
 } from '@mui/material';
 import EuroIcon from '@mui/icons-material/Euro';
-import { type Envelope } from '../types/envelope';
+import { type ComputedEnvelope } from '../types/envelope';
 import { calculateAllocation, type AllocationResult } from '../utils/calculateAllocation';
 
 interface IncomeDialogProps {
   open: boolean;
   onClose: () => void;
-  envelopes: Envelope[];
+  envelopes: ComputedEnvelope[];
   onApply?: (results: AllocationResult[]) => void;
   initialAmount?: number;
 }
@@ -33,52 +33,36 @@ function formatCurrency(amount: number): string {
 
 export default function IncomeDialog({ open, onClose, envelopes, onApply, initialAmount }: IncomeDialogProps) {
   const [incomeInput, setIncomeInput] = useState<string>('');
-  const [results, setResults] = useState<AllocationResult[] | null>(null);
-  const [error, setError] = useState<string>('');
 
   const isEditing = initialAmount != null;
 
   useEffect(() => {
     if (open && initialAmount != null) {
       setIncomeInput(String(initialAmount));
-      setResults(calculateAllocation(initialAmount, envelopes));
-      setError('');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!open) {
+      setIncomeInput('');
+    }
   }, [open, initialAmount]);
 
-  const handleCalculate = () => {
-    const income = parseFloat(incomeInput);
+  const income = parseFloat(incomeInput);
+  const isValid = incomeInput !== '' && !isNaN(income) && income > 0;
 
-    // Validation
-    if (!incomeInput || isNaN(income) || income <= 0) {
-      setError('Veuillez entrer un montant valide.');
-      setResults(null);
-      return;
-    }
+  const results = useMemo<AllocationResult[] | null>(() => {
+    if (!isValid) return null;
+    return calculateAllocation(income, envelopes);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomeInput, envelopes]);
 
-    setError('');
-    setResults(calculateAllocation(income, envelopes));
-  };
+  const allTargetsMet = isValid && results !== null && results.length === 0;
 
   const handleApply = () => {
-    const income = parseFloat(incomeInput);
-    if (!incomeInput || isNaN(income) || income <= 0) {
-      setError('Veuillez entrer un montant valide.');
-      return;
-    }
-    const finalResults = calculateAllocation(income, envelopes);
-    setError('');
-    onApply?.(finalResults);
-    setIncomeInput('');
-    setResults(null);
+    if (!isValid || !results || results.length === 0) return;
+    onApply?.(results);
     onClose();
   };
 
   const handleClose = () => {
-    setIncomeInput('');
-    setResults(null);
-    setError('');
     onClose();
   };
 
@@ -95,64 +79,68 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
           type="number"
           fullWidth
           value={incomeInput}
-          onChange={(e) => { setIncomeInput(e.target.value); setResults(null); }}
-          error={!!error}
-          helperText={error || ' '}
+          onChange={(e) => setIncomeInput(e.target.value)}
           inputProps={{ min: 0, step: 1 }}
           InputProps={{
             startAdornment: <EuroIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />,
           }}
+          helperText="La répartition sera calculée automatiquement selon vos objectifs."
           sx={{ mt: 1 }}
         />
 
-        {/* Bouton calculer */}
-        <Button
-          variant="contained"
-          fullWidth
-          onClick={handleCalculate}
-          sx={{ mt: 1, mb: results ? 3 : 1 }}
-        >
-          Calculer la répartition
-        </Button>
+        {/* Tous les objectifs atteints */}
+        {allTargetsMet && (
+          <Box mt={3}>
+            <Divider sx={{ mb: 2 }} />
+            <Typography variant="body2" color="text.secondary" textAlign="center" py={1}>
+              Tous les objectifs sont atteints.
+            </Typography>
+          </Box>
+        )}
 
         {/* Résultats */}
-        {results && (
-          <>
+        {results !== null && results.length > 0 && (
+          <Box mt={3}>
             <Divider sx={{ mb: 2 }} />
             <Typography variant="subtitle2" color="text.secondary" mb={1.5}>
-              Répartition pour {formatCurrency(parseFloat(incomeInput))}
+              Répartition pour {formatCurrency(income)}
             </Typography>
             <Stack spacing={1.5}>
-              {results.map(({ envelope, allocatedAmount }) => (
-                <Box
-                  key={envelope.id}
-                  display="flex"
-                  justifyContent="space-between"
-                  alignItems="center"
-                  sx={{
-                    px: 2,
-                    py: 1.5,
-                    borderRadius: 3,
-                    bgcolor: 'primary.main',
-                    // Légère variation d'opacité pour chaque ligne
-                    opacity: 0.85 + (envelope.allocationPercentage / 100) * 0.15,
-                  }}
-                >
-                  <Box>
-                    <Typography variant="body2" fontWeight={600} color="white">
-                      {envelope.name}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.75)' }}>
-                      {envelope.allocationPercentage}%
+              {[...results].sort((a, b) => b.allocatedAmount - a.allocatedAmount).map(({ envelope, allocatedAmount }) => {
+                const pct = income > 0 ? (allocatedAmount / income) * 100 : 0;
+                return (
+                  <Box
+                    key={envelope.id}
+                    display="flex"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    sx={{ px: 2, py: 1.5, borderRadius: 3, bgcolor: 'primary.main' }}
+                  >
+                    <Box>
+                      <Typography variant="body2" fontWeight={600} color="white">
+                        {envelope.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.75)' }}>
+                        {pct.toFixed(1)}%
+                      </Typography>
+                    </Box>
+                    <Typography variant="h6" fontWeight={700} color="white">
+                      {formatCurrency(allocatedAmount)}
                     </Typography>
                   </Box>
-                  <Typography variant="h6" fontWeight={700} color="white">
-                    {formatCurrency(allocatedAmount)}
-                  </Typography>
-                </Box>
-              ))}
+                );
+              })}
             </Stack>
-          </>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              display="block"
+              mt={2}
+              textAlign="center"
+            >
+              Répartition calculée automatiquement selon les objectifs restants.
+            </Typography>
+          </Box>
         )}
       </DialogContent>
 
@@ -161,7 +149,11 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
           Fermer
         </Button>
         {onApply && (
-          <Button variant="contained" onClick={handleApply}>
+          <Button
+            variant="contained"
+            onClick={handleApply}
+            disabled={!isValid || !results || results.length === 0}
+          >
             {isEditing ? 'Enregistrer' : 'Appliquer'}
           </Button>
         )}

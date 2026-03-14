@@ -8,27 +8,18 @@ import {
   Divider,
   IconButton,
   Tooltip,
-  Table,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
   CircularProgress,
   Snackbar,
   Alert,
   Avatar,
   Menu,
   MenuItem,
-  TextField,
   Fab,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import HistoryIcon from '@mui/icons-material/History';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PageHeader from '../components/PageHeader';
 import EnvelopeCard from '../components/EnvelopeCard';
@@ -125,12 +116,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
     [baseEnvelopes, incomeHistory],
   );
 
-  const totalAllocation = useMemo(
-    () => baseEnvelopes.reduce((sum, e) => sum + (Number(e.allocationPercentage) || 0), 0),
-    [baseEnvelopes],
-  );
-  const allocationDiff = totalAllocation - 100;
-
   // ── Income handlers ───────────────────────────────────────────────────────
   const handleApplyAllocation = useCallback(
     (results: AllocationResult[]) => {
@@ -203,23 +188,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
     setEditingEnvelope(null);
   }, []);
 
-  // ── Inline table edit state ───────────────────────────────────────────────
-  const [inlineEdit, setInlineEdit] = useState<{
-    id: string;
-    field: 'targetAmount' | 'allocationPercentage';
-    value: string;
-  } | null>(null);
-
-  const commitInlineEdit = useCallback(() => {
-    if (!inlineEdit) return;
-    const env = baseEnvelopes.find((e) => e.id === inlineEdit.id);
-    if (!env) { setInlineEdit(null); return; }
-    const parsed = parseFloat(inlineEdit.value.replace(',', '.'));
-    if (!Number.isNaN(parsed) && parsed >= 0) {
-      handleSaveEnvelope({ ...env, [inlineEdit.field]: parsed }, env.id);
-    }
-    setInlineEdit(null);
-  }, [inlineEdit, baseEnvelopes, handleSaveEnvelope]);
 
   if (dataLoading) {
     return (
@@ -322,157 +290,48 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         </Button>
       </Box>
 
-      {/* Allocation status banner */}
-      {baseEnvelopes.length > 0 && (() => {
-        const isOk = allocationDiff === 0;
-        const isOver = allocationDiff > 0;
-        const color = isOk ? '#00BFA5' : isOver ? '#f44336' : '#ff9800';
-        const bgcolor = isOk ? 'rgba(0,191,165,0.08)' : isOver ? 'rgba(244,67,54,0.08)' : 'rgba(255,152,0,0.08)';
-        const borderColor = isOk ? 'rgba(0,191,165,0.25)' : isOver ? 'rgba(244,67,54,0.25)' : 'rgba(255,152,0,0.25)';
-        const Icon = isOk ? CheckCircleOutlineIcon : isOver ? ErrorOutlineIcon : WarningAmberIcon;
-        const message = isOk
-          ? 'Répartition complète — 100% alloués'
-          : isOver
-          ? `Dépassement de ${allocationDiff}% — total actuel : ${totalAllocation}%`
-          : `${Math.abs(allocationDiff)}% non alloués — total actuel : ${totalAllocation}%`;
-        return (
-          <Box
-            display="flex"
-            alignItems="center"
-            gap={1.25}
-            mb={3}
-            px={2}
-            py={1.25}
-            sx={{ borderRadius: 2, bgcolor, border: `1px solid ${borderColor}` }}
-          >
-            <Icon sx={{ fontSize: 18, color, flexShrink: 0 }} />
-            <Typography variant="body2" fontWeight={500} sx={{ color }}>
-              {message}
+
+      {/* Grille de cards / empty state */}
+      {baseEnvelopes.length === 0 ? (
+        <Paper variant="outlined" sx={{ p: 6 }}>
+          <Stack alignItems="center" spacing={1.5} textAlign="center">
+            <AddIcon sx={{ fontSize: 40, color: 'text.disabled' }} />
+            <Typography variant="h6" fontWeight={600}>
+              Aucune enveloppe configurée
             </Typography>
-          </Box>
-        );
-      })()}
-
-      {/* Grille de cards */}
-      <Box
-        display="grid"
-        sx={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
-        gap={3}
-      >
-        {envelopes.map((envelope) => (
-          <EnvelopeCard
-            key={envelope.id}
-            envelope={envelope}
-            onEdit={() => {
-              setEditingEnvelope(envelope);
-              setEnvelopeDialogOpen(true);
-            }}
-            onDelete={() => handleDeleteEnvelope(envelope.id)}
-          />
-        ))}
-      </Box>
-
-      {/* Table de gestion des enveloppes */}
-      {baseEnvelopes.length > 0 && (
-        <Box mt={4}>
-          <Typography
-            variant="caption"
-            fontWeight={600}
-            color="text.secondary"
-            display="block"
-            mb={1.5}
-            sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}
-          >
-            Configuration
-          </Typography>
-          <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>Enveloppe</TableCell>
-                  <TableCell align="right" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>Objectif</TableCell>
-                  <TableCell align="right" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>Allocation</TableCell>
-                  <TableCell sx={{ width: 48 }} />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {baseEnvelopes.map((env) => (
-                  <TableRow key={env.id} sx={{ '&:last-child td': { border: 0 } }}>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={500}>{env.name}</Typography>
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      onClick={() =>
-                        !inlineEdit &&
-                        setInlineEdit({ id: env.id, field: 'targetAmount', value: String(env.targetAmount) })
-                      }
-                      sx={{ cursor: 'text', minWidth: 110 }}
-                    >
-                      {inlineEdit?.id === env.id && inlineEdit.field === 'targetAmount' ? (
-                        <TextField
-                          autoFocus
-                          size="small"
-                          value={inlineEdit.value}
-                          onChange={(e) => setInlineEdit({ ...inlineEdit, value: e.target.value })}
-                          onBlur={commitInlineEdit}
-                          onKeyDown={(e) => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') setInlineEdit(null); }}
-                          inputProps={{ style: { textAlign: 'right' } }}
-                          sx={{ width: 100 }}
-                        />
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          {formatCurrency(env.targetAmount)}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      onClick={() =>
-                        !inlineEdit &&
-                        setInlineEdit({ id: env.id, field: 'allocationPercentage', value: String(env.allocationPercentage) })
-                      }
-                      sx={{ cursor: 'text', minWidth: 90 }}
-                    >
-                      {inlineEdit?.id === env.id && inlineEdit.field === 'allocationPercentage' ? (
-                        <TextField
-                          autoFocus
-                          size="small"
-                          value={inlineEdit.value}
-                          onChange={(e) => setInlineEdit({ ...inlineEdit, value: e.target.value })}
-                          onBlur={commitInlineEdit}
-                          onKeyDown={(e) => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') setInlineEdit(null); }}
-                          inputProps={{ style: { textAlign: 'right' } }}
-                          sx={{ width: 72 }}
-                        />
-                      ) : (
-                        <Typography variant="body2" fontWeight={700} color="primary.light">
-                          {env.allocationPercentage}%
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell align="right" sx={{ pr: 1 }}>
-                      <Tooltip title="Modifier">
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setEditingEnvelope(env);
-                            setEnvelopeDialogOpen(true);
-                          }}
-                          sx={{
-                            color: 'text.secondary',
-                            '&:hover': { color: 'primary.light', bgcolor: 'rgba(77, 107, 255, 0.12)' },
-                          }}
-                        >
-                          <EditIcon sx={{ fontSize: 15 }} />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Paper>
+            <Typography variant="body2" color="text.secondary" maxWidth={380}>
+              Créez votre première enveloppe pour commencer à organiser votre portefeuille.
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => {
+                setEditingEnvelope(null);
+                setEnvelopeDialogOpen(true);
+              }}
+              sx={{ mt: 1 }}
+            >
+              Créer une enveloppe
+            </Button>
+          </Stack>
+        </Paper>
+      ) : (
+        <Box
+          display="grid"
+          sx={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
+          gap={3}
+        >
+          {envelopes.map((envelope) => (
+            <EnvelopeCard
+              key={envelope.id}
+              envelope={envelope}
+              onEdit={() => {
+                setEditingEnvelope(envelope);
+                setEnvelopeDialogOpen(true);
+              }}
+              onDelete={() => handleDeleteEnvelope(envelope.id)}
+            />
+          ))}
         </Box>
       )}
 
@@ -487,7 +346,30 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           <HistoryIcon fontSize="small" />
           Historique des revenus
         </Typography>
-      {incomeHistory.length > 0 && (
+      {incomeHistory.length === 0 ? (
+          <Paper variant="outlined" sx={{ p: 6 }}>
+            <Stack alignItems="center" spacing={1.5} textAlign="center">
+              <HistoryIcon sx={{ fontSize: 40, color: 'text.disabled' }} />
+              <Typography variant="h6" fontWeight={600}>
+                Aucun revenu enregistré
+              </Typography>
+              <Typography variant="body2" color="text.secondary" maxWidth={380}>
+                Commencez par déclarer votre premier revenu pour voir comment il se répartit dans vos enveloppes.
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => {
+                  setEditingIncome(null);
+                  setIncomeDialogOpen(true);
+                }}
+                sx={{ mt: 1 }}
+              >
+                Déclarer un revenu
+              </Button>
+            </Stack>
+          </Paper>
+        ) : (
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Stack divider={<Divider />} spacing={0}>
               {incomeHistory.map((entry) => (
@@ -546,7 +428,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
               ))}
             </Stack>
           </Paper>
-      )}
+        )}
       </Box>
 
       {/* FAB — Déclarer un revenu */}

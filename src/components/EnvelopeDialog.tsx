@@ -21,21 +21,18 @@ interface FormState {
   name: string;
   baseAmount: string;
   targetAmount: string;
-  allocationPercentage: string;
 }
 
 const emptyForm: FormState = {
   name: '',
   baseAmount: '',
   targetAmount: '',
-  allocationPercentage: '',
 };
 
 interface FormErrors {
   name?: string;
   baseAmount?: string;
   targetAmount?: string;
-  allocationPercentage?: string;
 }
 
 export default function EnvelopeDialog({ open, onClose, onSave, initialEnvelope }: EnvelopeDialogProps) {
@@ -52,7 +49,6 @@ export default function EnvelopeDialog({ open, onClose, onSave, initialEnvelope 
               name: initialEnvelope.name,
               baseAmount: String(initialEnvelope.baseAmount),
               targetAmount: String(initialEnvelope.targetAmount),
-              allocationPercentage: String(initialEnvelope.allocationPercentage),
             }
           : emptyForm,
       );
@@ -77,10 +73,6 @@ export default function EnvelopeDialog({ open, onClose, onSave, initialEnvelope 
     if (form.targetAmount === '' || isNaN(target) || target <= 0)
       next.targetAmount = 'Objectif invalide (> 0).';
 
-    const pct = parseFloat(form.allocationPercentage);
-    if (form.allocationPercentage === '' || isNaN(pct) || pct <= 0 || pct > 100)
-      next.allocationPercentage = 'Pourcentage invalide (1–100).';
-
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -92,7 +84,7 @@ export default function EnvelopeDialog({ open, onClose, onSave, initialEnvelope 
         name: form.name.trim(),
         baseAmount: parseFloat(form.baseAmount),
         targetAmount: parseFloat(form.targetAmount),
-        allocationPercentage: parseFloat(form.allocationPercentage),
+        allocationPercentage: initialEnvelope?.allocationPercentage ?? 0,
       },
       initialEnvelope?.id,
     );
@@ -140,16 +132,6 @@ export default function EnvelopeDialog({ open, onClose, onSave, initialEnvelope 
             error={!!errors.targetAmount}
             helperText={errors.targetAmount || ' '}
             inputProps={{ min: 1, step: 1 }}
-          />
-          <TextField
-            label="Allocation (%)"
-            type="number"
-            fullWidth
-            value={form.allocationPercentage}
-            onChange={set('allocationPercentage')}
-            error={!!errors.allocationPercentage}
-            helperText={errors.allocationPercentage || 'Part des revenus allouée à cette enveloppe'}
-            inputProps={{ min: 1, max: 100, step: 1 }}
           />
         </Stack>
       </DialogContent>

@@ -19,12 +19,21 @@ interface EnvelopeCardProps {
   onDelete?: () => void;
 }
 
+type StatusConfig = { label: string; color: string };
+
+function getStatus(progress: number | null, reached: boolean): StatusConfig {
+  if (reached)                          return { label: 'Atteinte',         color: '#00BFA5' };
+  if (progress != null && progress >= 80) return { label: 'Presque atteinte', color: '#FFB547' };
+  return                                       { label: 'En cours',           color: '#8892B0' };
+}
+
 export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelete }: EnvelopeCardProps) {
   const { name } = envelope;
   const currentAmount = Number(envelope.currentAmount) || 0;
   const targetAmount = Number(envelope.targetAmount) || 0;
   const progressValue =
     targetAmount > 0 ? Math.min((currentAmount / targetAmount) * 100, 100) : null;
+  const status = getStatus(progressValue, currentAmount >= targetAmount && targetAmount > 0);
 
   return (
     <Card
@@ -104,10 +113,22 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
 
         {/* Progress */}
         <Box>
-          <Box display="flex" justifyContent="space-between" alignItems="baseline" mb={1}>
-            <Typography variant="caption" color="text.disabled" fontWeight={400}>
-              Progression
-            </Typography>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+            <Box display="flex" alignItems="center" gap={0.75}>
+              <Box
+                sx={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  bgcolor: status.color,
+                  flexShrink: 0,
+                  opacity: 0.9,
+                }}
+              />
+              <Typography variant="caption" fontWeight={500} sx={{ color: status.color }}>
+                {status.label}
+              </Typography>
+            </Box>
             <Typography
               variant="caption"
               fontWeight={600}

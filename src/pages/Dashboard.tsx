@@ -120,19 +120,68 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
     [baseEnvelopes, incomeHistory],
   );
 
-  // Envelope with the largest remaining gap — receives the most from the next income.
-  const priorityEnvelope = useMemo(() => {
-    const candidates = envelopes
-      .map((e) => ({ name: e.name, remaining: Math.max(e.targetAmount - e.currentAmount, 0) }))
-      .filter((c) => c.remaining > 0);
-    if (candidates.length < 2) return null;
-    return candidates.reduce((best, c) => (c.remaining > best.remaining ? c : best));
-  }, [envelopes]);
+  // Single contextual recommendation evaluated in priority order.
+  const recommendation = useMemo((): { title: string; body: string } | null => {
+    if (envelopes.length === 0) return null;
 
-  const allTargetsMet = useMemo(
-    () => envelopes.length > 0 && envelopes.every((e) => e.currentAmount >= e.targetAmount),
-    [envelopes],
-  );
+    const portfolioTotal = envelopes.reduce((sum, e) => sum + e.currentAmount, 0);
+
+    // 0. All targets met
+    if (envelopes.every((e) => e.currentAmount >= e.targetAmount)) {
+      return {
+        title: 'Tous les objectifs sont atteints',
+        body: 'Votre portefeuille a atteint tous ses objectifs.',
+      };
+    }
+
+    // 1. At least one envelope has reached its target (but not all)
+    const reached = envelopes.find((e) => e.targetAmount > 0 && e.currentAmount >= e.targetAmount);
+    if (reached) {
+      return {
+        title: `Objectif atteint : ${reached.name}`,
+        body: 'Les prochains revenus seront alloués aux autres enveloppes.',
+      };
+    }
+
+    // 2. An envelope is almost complete (> 80% progress)
+    const open = envelopes.filter((e) => e.targetAmount > 0 && e.currentAmount < e.targetAmount);
+    const almostDone = open
+      .map((e) => ({ name: e.name, progress: e.currentAmount / e.targetAmount, remaining: e.targetAmount - e.currentAmount }))
+      .filter((e) => e.progress > 0.8)
+      .sort((a, b) => b.progress - a.progress)[0];
+    if (almostDone) {
+      return {
+        title: `${almostDone.name} est presque atteinte`,
+        body: `Plus que ${formatCurrency(almostDone.remaining)} pour atteindre l'objectif.`,
+      };
+    }
+
+    // 3. Priority envelope (only meaningful with 2+ open envelopes)
+    if (open.length >= 2) {
+      const priority = open
+        .map((e) => ({ name: e.name, remaining: e.targetAmount - e.currentAmount }))
+        .reduce((best, c) => (c.remaining > best.remaining ? c : best));
+      return {
+        title: `Priorité actuelle : ${priority.name}`,
+        body: 'Cette enveloppe reçoit actuellement la plus grande part de vos prochains revenus.',
+      };
+    }
+
+    // 4. Portfolio concentration > 70%
+    if (portfolioTotal > 0) {
+      const concentrated = envelopes
+        .map((e) => ({ name: e.name, pct: (e.currentAmount / portfolioTotal) * 100 }))
+        .find((e) => e.pct > 70);
+      if (concentrated) {
+        return {
+          title: 'Portefeuille concentré',
+          body: `Votre portefeuille est fortement concentré sur ${concentrated.name} (${concentrated.pct.toFixed(0)}%).`,
+        };
+      }
+    }
+
+    return null;
+  }, [envelopes]);
 
   // ── Income handlers ───────────────────────────────────────────────────────
   const handleApplyAllocation = useCallback(
@@ -416,7 +465,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         </Button>
       </Box>
 
-      {(priorityEnvelope || allTargetsMet) && !recommendationDismissed && (
+      {recommendation && !recommendationDismissed && (
         <Box
           mb={2.5}
           sx={{
@@ -442,18 +491,12 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
             >
               Recommandation
             </Typography>
-            {allTargetsMet ? (
-              <Typography variant="body2" color="text.secondary">
-                Tous les objectifs sont atteints.
-              </Typography>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                <Box component="span" sx={{ color: 'text.primary', fontWeight: 600 }}>
-                  {priorityEnvelope!.name}
-                </Box>
-                {' '}reçoit actuellement la plus grande part de vos prochains revenus.
-              </Typography>
-            )}
+            <Typography variant="body2" fontWeight={600} color="text.primary" lineHeight={1.4}>
+              {recommendation.title}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block" mt={0.25}>
+              {recommendation.body}
+            </Typography>
           </Box>
           <Tooltip title="Fermer">
             <IconButton
@@ -589,68 +632,75 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           <Paper variant="outlined" sx={{ px: 0, py: 0, overflow: 'hidden' }}>
             <Stack divider={<Divider />} spacing={0}>
               {incomeHistory.map((entry) => (
-                <Box
-                  key={entry.id}
-                  display="flex"
-                  flexDirection={{ xs: 'column', sm: 'row' }}
-                  justifyContent="space-between"
-                  alignItems={{ xs: 'flex-start', sm: 'center' }}
-                  gap={1.5}
-                  px={2.5}
-                  py={2}
-                >
-                  <Box minWidth={120}>
-                    <Typography variant="body2" fontWeight={700} color="text.primary">
-                      {formatCurrency(entry.amount)}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block" mt={0.25}>
-                      {formatDate(entry.date)}
-                    </Typography>
-                  </Box>
-                  <Stack direction="row" flexWrap="wrap" gap={0.75} useFlexGap alignItems="center" flex={1}>
-                    {entry.allocations.map(({ envelope, allocatedAmount }) => (
-                      <Typography
-                        key={envelope.id}
-                        variant="caption"
-                        component="span"
-                        fontWeight={500}
-                        sx={{
-                          px: 1.25,
-                          py: 0.4,
-                          borderRadius: '20px',
-                          bgcolor: 'rgba(255, 255, 255, 0.04)',
-                          border: '1px solid rgba(255, 255, 255, 0.07)',
-                          color: 'text.secondary',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {envelope.name} · {formatCurrency(allocatedAmount)}
+                <Box key={entry.id} px={2.5} py={2.25}>
+
+                  {/* Entry header: amount + date + actions */}
+                  <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                    <Box>
+                      <Typography variant="body2" fontWeight={700} color="text.primary">
+                        {formatCurrency(entry.amount)}
                       </Typography>
-                    ))}
-                  </Stack>
-                  <Box display="flex" gap={0.25} flexShrink={0}>
-                    <Tooltip title="Modifier">
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          setEditingIncome(entry);
-                          setIncomeDialogOpen(true);
-                        }}
-                        sx={{ color: 'text.secondary', '&:hover': { color: 'primary.light', bgcolor: 'rgba(77, 107, 255, 0.1)' } }}
-                      >
-                        <EditIcon sx={{ fontSize: 14 }} />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Supprimer">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteIncome(entry.id)}
-                        sx={{ color: 'text.secondary', '&:hover': { color: 'error.main', bgcolor: 'rgba(211, 47, 47, 0.08)' } }}
-                      >
-                        <DeleteIcon sx={{ fontSize: 14 }} />
-                      </IconButton>
-                    </Tooltip>
+                      <Typography variant="caption" color="text.disabled" display="block" mt={0.25}>
+                        {formatDate(entry.date)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" gap={0.25} flexShrink={0} mt={-0.25}>
+                      <Tooltip title="Modifier">
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            setEditingIncome(entry);
+                            setIncomeDialogOpen(true);
+                          }}
+                          sx={{ color: 'text.secondary', '&:hover': { color: 'primary.light', bgcolor: 'rgba(77, 107, 255, 0.1)' } }}
+                        >
+                          <EditIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Supprimer">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteIncome(entry.id)}
+                          sx={{ color: 'text.secondary', '&:hover': { color: 'error.main', bgcolor: 'rgba(211, 47, 47, 0.08)' } }}
+                        >
+                          <DeleteIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </Box>
+
+                  {/* Allocation breakdown */}
+                  {entry.allocations.length > 0 && (
+                    <Box
+                      mt={1.5}
+                      sx={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}
+                    >
+                      {[...entry.allocations]
+                        .sort((a, b) => b.allocatedAmount - a.allocatedAmount)
+                        .map(({ envelope, allocatedAmount }) => (
+                          <Box
+                            key={envelope.id}
+                            display="flex"
+                            justifyContent="space-between"
+                            alignItems="center"
+                            pt={1}
+                          >
+                            <Typography variant="caption" color="text.secondary">
+                              {envelope.name}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              fontWeight={600}
+                              color="text.primary"
+                              sx={{ fontVariantNumeric: 'tabular-nums' }}
+                            >
+                              {formatCurrency(allocatedAmount)}
+                            </Typography>
+                          </Box>
+                        ))}
+                    </Box>
+                  )}
+
                 </Box>
               ))}
             </Stack>

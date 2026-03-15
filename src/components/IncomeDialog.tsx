@@ -14,7 +14,9 @@ import EuroIcon from '@mui/icons-material/Euro';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import { type ComputedEnvelope } from '../types/envelope';
+import { type Asset } from '../types/asset';
 import { calculateAllocation, type AllocationResult } from '../utils/calculateAllocation';
+import { computeUnits } from '../utils/computeUnits';
 import { formatCurrency } from '../utils/format';
 
 // Animates a number from 0 to `target` over `duration` ms with ease-out cubic easing.
@@ -45,11 +47,12 @@ interface IncomeDialogProps {
   open: boolean;
   onClose: () => void;
   envelopes: ComputedEnvelope[];
+  assets?: Asset[];
   onApply?: (results: AllocationResult[], isManual: boolean) => void;
   initialAmount?: number;
 }
 
-export default function IncomeDialog({ open, onClose, envelopes, onApply, initialAmount }: IncomeDialogProps) {
+export default function IncomeDialog({ open, onClose, envelopes, assets = [], onApply, initialAmount }: IncomeDialogProps) {
   const [incomeInput, setIncomeInput] = useState<string>('');
   const [isManual, setIsManual] = useState(false);
   const [manualAmounts, setManualAmounts] = useState<Record<string, string>>({});
@@ -82,6 +85,12 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
   }, [results]);
 
   const allTargetsMet = isValid && results !== null && results.length === 0;
+
+  // Envelopes excluded from allocation because they have already hit their target.
+  const reachedEnvelopes = useMemo(() => {
+    if (!isValid) return [];
+    return envelopes.filter((e) => e.targetAmount > 0 && e.currentAmount >= e.targetAmount);
+  }, [envelopes, isValid]);
 
   // Manual mode derived values
   const manualTotal = useMemo(() => {
@@ -222,13 +231,28 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
           }}
         />
 
-        {/* Tous les objectifs atteints */}
+        {/* All targets met */}
         {allTargetsMet && (
           <Box mt={3}>
             <Divider sx={{ mb: 2.5 }} />
-            <Typography variant="body2" color="text.secondary" textAlign="center" py={1.5}>
-              Tous les objectifs sont atteints.
-            </Typography>
+            <Box
+              sx={{
+                py: 2,
+                px: 2,
+                borderRadius: 2,
+                bgcolor: 'rgba(0, 191, 165, 0.06)',
+                border: '1px solid rgba(0, 191, 165, 0.18)',
+                textAlign: 'center',
+              }}
+            >
+              <Typography variant="body2" fontWeight={600} sx={{ color: '#00BFA5' }} mb={0.5}>
+                Tous vos objectifs sont atteints
+              </Typography>
+              <Typography variant="caption" color="text.disabled" display="block" sx={{ lineHeight: 1.5 }}>
+                Ce revenu ne sera pas réparti automatiquement.
+                Vous pouvez quand même enregistrer une entrée si nécessaire.
+              </Typography>
+            </Box>
           </Box>
         )}
 
@@ -285,13 +309,14 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
             >
               {sortedResults.map(({ envelope, allocatedAmount }, i, arr) => {
                 const pct = income > 0 ? (allocatedAmount / income) * 100 : 0;
+                const asset = assets.find((a) => a.envelopeId === envelope.id);
+                const unitHint = (!isManual && asset && asset.unitPrice > 0)
+                  ? computeUnits(allocatedAmount, asset.unitPrice, asset.isFractional)
+                  : null;
+
                 return (
                   <Box
                     key={envelope.id}
-                    display="grid"
-                    gridTemplateColumns={isManual ? '1fr auto' : '1fr auto auto'}
-                    alignItems="center"
-                    gap={isManual ? 1.5 : 2}
                     sx={{
                       px: 2,
                       py: isManual ? 1 : 1.25,
@@ -299,59 +324,83 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
                       borderBottom: i < arr.length - 1 ? '1px solid rgba(255, 255, 255, 0.06)' : 'none',
                     }}
                   >
-                    <Typography variant="body2" fontWeight={500} color="text.primary" noWrap>
-                      {envelope.name}
-                    </Typography>
-
-                    {!isManual && (
-                      <Typography variant="caption" color="text.disabled" textAlign="right" sx={{ minWidth: 36 }}>
-                        {pct.toFixed(0)}%
+                    {/* Main row: name / percentage / amount */}
+                    <Box
+                      display="grid"
+                      gridTemplateColumns={isManual ? '1fr auto' : '1fr auto auto'}
+                      alignItems="center"
+                      gap={isManual ? 1.5 : 2}
+                    >
+                      <Typography variant="body2" fontWeight={500} color="text.primary" noWrap>
+                        {envelope.name}
                       </Typography>
-                    )}
 
-                    {isManual ? (
-                      // Wrapper Box carries the Emotion styles; the inner <input> is a
-                      // plain native element so React's controlled-input reconciliation
-                      // always updates the DOM value when manualAmounts changes.
-                      <Box
-                        sx={{
-                          '& input[type=number]': {
-                            display: 'block',
-                            width: '84px',
-                            background: 'rgba(255,255,255,0.05)',
-                            border: '1px solid rgba(77,107,255,0.3)',
-                            borderRadius: '6px',
-                            color: '#E2E8F0',
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
-                            fontFamily: 'inherit',
-                            fontVariantNumeric: 'tabular-nums',
-                            textAlign: 'right',
-                            outline: 'none',
-                            padding: '5px 8px',
-                            boxSizing: 'border-box',
-                            transition: 'border-color 0.15s, background 0.15s',
-                            MozAppearance: 'textfield',
-                          },
-                          '& input[type=number]:focus': {
-                            borderColor: 'rgba(77,107,255,0.7)',
-                            background: 'rgba(77,107,255,0.08)',
-                          },
-                          '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
-                          '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 },
-                        }}
+                      {!isManual && (
+                        <Typography variant="caption" color="text.disabled" textAlign="right" sx={{ minWidth: 36 }}>
+                          {pct.toFixed(0)}%
+                        </Typography>
+                      )}
+
+                      {isManual ? (
+                        // Wrapper Box carries the Emotion styles; the inner <input> is a
+                        // plain native element so React's controlled-input reconciliation
+                        // always updates the DOM value when manualAmounts changes.
+                        <Box
+                          sx={{
+                            '& input[type=number]': {
+                              display: 'block',
+                              width: '84px',
+                              background: 'rgba(255,255,255,0.05)',
+                              border: '1px solid rgba(77,107,255,0.3)',
+                              borderRadius: '6px',
+                              color: '#E2E8F0',
+                              fontSize: '0.8125rem',
+                              fontWeight: 600,
+                              fontFamily: 'inherit',
+                              fontVariantNumeric: 'tabular-nums',
+                              textAlign: 'right',
+                              outline: 'none',
+                              padding: '5px 8px',
+                              boxSizing: 'border-box',
+                              transition: 'border-color 0.15s, background 0.15s',
+                              MozAppearance: 'textfield',
+                            },
+                            '& input[type=number]:focus': {
+                              borderColor: 'rgba(77,107,255,0.7)',
+                              background: 'rgba(77,107,255,0.08)',
+                            },
+                            '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
+                            '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 },
+                          }}
+                        >
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={manualAmounts[envelope.id] ?? ''}
+                            onChange={(e) => handleManualChange(envelope.id, e.target.value)}
+                          />
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" fontWeight={700} color="text.primary" textAlign="right" sx={{ minWidth: 72, fontVariantNumeric: 'tabular-nums' }}>
+                          <AnimatedAmount amount={allocatedAmount} />
+                        </Typography>
+                      )}
+                    </Box>
+
+                    {/* Unit hint — shown in auto mode when a linked asset exists */}
+                    {unitHint !== null && (
+                      <Typography
+                        variant="caption"
+                        color="text.disabled"
+                        display="block"
+                        mt={0.5}
+                        sx={{ fontSize: '0.67rem', fontVariantNumeric: 'tabular-nums' }}
                       >
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={manualAmounts[envelope.id] ?? ''}
-                          onChange={(e) => handleManualChange(envelope.id, e.target.value)}
-                        />
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" fontWeight={700} color="text.primary" textAlign="right" sx={{ minWidth: 72, fontVariantNumeric: 'tabular-nums' }}>
-                        <AnimatedAmount amount={allocatedAmount} />
+                        {unitHint.units === 0 && !asset!.isFractional
+                          ? `Prix unitaire ${formatCurrency(asset!.unitPrice)} — allocation insuffisante pour 1 part`
+                          : `≈ ${asset!.isFractional ? unitHint.units.toFixed(3).replace(/\.?0+$/, '') : unitHint.units} part${unitHint.units !== 1 ? 's' : ''}${unitHint.remainingCash > 0 ? ` · reste ${formatCurrency(unitHint.remainingCash)}` : ''}`
+                        }
                       </Typography>
                     )}
                   </Box>
@@ -400,6 +449,30 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
                     Revenir à la répartition automatique
                   </Button>
                 </Box>
+              </Box>
+            )}
+
+            {/* Reached-envelope exclusion notice (auto mode only) */}
+            {!isManual && reachedEnvelopes.length > 0 && (
+              <Box mt={1.75}>
+                {reachedEnvelopes.map((e) => (
+                  <Typography
+                    key={e.id}
+                    variant="caption"
+                    display="block"
+                    sx={{
+                      fontSize: '0.67rem',
+                      color: 'text.disabled',
+                      lineHeight: 1.55,
+                      '& + &': { mt: 0.4 },
+                    }}
+                  >
+                    <Box component="span" sx={{ color: '#00BFA5', fontWeight: 600 }}>
+                      {e.name}
+                    </Box>
+                    {' '}a atteint son objectif et n'est pas incluse dans cette répartition.
+                  </Typography>
+                ))}
               </Box>
             )}
 

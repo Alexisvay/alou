@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/resolve-isin.ts": {
+      "runtime": "edge"
+    }
+  }
+}

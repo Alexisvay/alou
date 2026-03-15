@@ -9,6 +9,7 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
 import { type ComputedEnvelope } from '../types/envelope';
 import { formatCurrency, displayAmount } from '../utils/format';
 
@@ -17,6 +18,8 @@ interface EnvelopeCardProps {
   portfolioShare?: number;
   onEdit?: () => void;
   onDelete?: () => void;
+  /** Props spread onto the drag-handle element (from useSortable). */
+  dragHandleProps?: React.HTMLAttributes<HTMLElement>;
 }
 
 type StatusConfig = { label: string; color: string };
@@ -27,22 +30,26 @@ function getStatus(progress: number | null, reached: boolean): StatusConfig {
   return                                       { label: 'En cours',           color: '#8892B0' };
 }
 
-export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelete }: EnvelopeCardProps) {
+export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelete, dragHandleProps }: EnvelopeCardProps) {
   const { name } = envelope;
   const currentAmount = Number(envelope.currentAmount) || 0;
   const targetAmount = Number(envelope.targetAmount) || 0;
   const progressValue =
     targetAmount > 0 ? Math.min((currentAmount / targetAmount) * 100, 100) : null;
-  const status = getStatus(progressValue, currentAmount >= targetAmount && targetAmount > 0);
+  const reached = currentAmount >= targetAmount && targetAmount > 0;
+  const status = getStatus(progressValue, reached);
 
   return (
     <Card
       sx={{
         height: '100%',
+        // Subtle green tint signals completion without being distracting.
+        bgcolor: reached ? 'rgba(0, 191, 165, 0.04)' : undefined,
+        borderColor: reached ? 'rgba(0, 191, 165, 0.18)' : undefined,
         transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
         '&:hover': {
           transform: 'translateY(-2px)',
-          borderColor: 'rgba(255, 255, 255, 0.14)',
+          borderColor: reached ? 'rgba(0, 191, 165, 0.35)' : 'rgba(255, 255, 255, 0.14)',
           boxShadow: [
             '0px 10px 36px rgba(0, 0, 0, 0.5)',
             'inset 0px 1px 0px rgba(255, 255, 255, 0.1)',
@@ -52,11 +59,35 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
     >
       <CardContent sx={{ p: 3.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
 
-        {/* Header: name + portfolio share badge */}
+        {/* Header: drag handle + name + portfolio share badge */}
         <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3.5}>
-          <Typography variant="h6" color="text.primary">
-            {name}
-          </Typography>
+          <Box display="flex" alignItems="flex-start" gap={0.5} flex={1} minWidth={0}>
+            {dragHandleProps && (
+              <Box
+                component="span"
+                {...dragHandleProps}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  mt: '3px',
+                  flexShrink: 0,
+                  cursor: 'grab',
+                  color: 'text.disabled',
+                  opacity: 0,
+                  transition: 'opacity 0.15s',
+                  '.MuiCard-root:hover &': { opacity: 1 },
+                  '&:hover': { color: 'text.secondary' },
+                  '&:active': { cursor: 'grabbing' },
+                  touchAction: 'none',
+                }}
+              >
+                <DragIndicatorRoundedIcon sx={{ fontSize: 15 }} />
+              </Box>
+            )}
+            <Typography variant="h6" color="text.primary" noWrap>
+              {name}
+            </Typography>
+          </Box>
           {portfolioShare != null && portfolioShare > 0 && (
             <Tooltip title="Part du portefeuille total" placement="top">
               <Box
@@ -132,8 +163,7 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
             <Typography
               variant="caption"
               fontWeight={600}
-              color={progressValue != null && progressValue >= 100 ? 'secondary.main' : 'primary.light'}
-              sx={{ opacity: 0.85 }}
+              sx={{ opacity: 0.85, color: reached ? '#00BFA5' : 'primary.light' }}
             >
               {progressValue != null ? `${progressValue.toFixed(1)} %` : '—'}
             </Typography>
@@ -147,7 +177,9 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
               backgroundColor: 'rgba(255, 255, 255, 0.07)',
               '& .MuiLinearProgress-bar': {
                 borderRadius: 4,
-                background: 'linear-gradient(90deg, #4D6BFF 0%, #8A9EFF 100%)',
+                background: reached
+                  ? 'linear-gradient(90deg, #00BFA5 0%, #00E5CC 100%)'
+                  : 'linear-gradient(90deg, #4D6BFF 0%, #8A9EFF 100%)',
               },
             }}
           />

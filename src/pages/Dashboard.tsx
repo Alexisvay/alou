@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   Box,
   Button,
@@ -26,6 +26,25 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import DonutLargeIcon from '@mui/icons-material/DonutLarge';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import EnvelopeCard from '../components/EnvelopeCard';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+  arrayMove,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import IncomeDialog from '../components/IncomeDialog';
 import EnvelopeDialog from '../components/EnvelopeDialog';
 import PortfolioChart from '../components/PortfolioChart';
@@ -34,6 +53,7 @@ import { mockEnvelopes } from '../data/mockEnvelopes';
 import { recalculateEnvelopes, type AllocationResult } from '../utils/calculateAllocation';
 import { type Envelope } from '../types/envelope';
 import { type IncomeEntry } from '../types/income';
+import { type Asset } from '../types/asset';
 import * as db from '../lib/db';
 import { formatCurrency, formatDate } from '../utils/format';
 
@@ -41,6 +61,42 @@ interface DashboardProps {
   userId: string;
   userEmail: string;
   onSignOut: () => Promise<void>;
+}
+
+// ── Sortable card wrapper ──────────────────────────────────────────────────────
+// Defined outside Dashboard so it isn't recreated on every render.
+interface SortableCardProps {
+  envelope: import('../types/envelope').ComputedEnvelope;
+  portfolioShare?: number;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+function SortableCard({ envelope, portfolioShare, onEdit, onDelete }: SortableCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: envelope.id,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition: isDragging ? undefined : transition,
+        // The card itself becomes invisible while the DragOverlay clone is shown.
+        opacity: isDragging ? 0 : 1,
+        zIndex: isDragging ? 1 : undefined,
+      }}
+    >
+      <EnvelopeCard
+        envelope={envelope}
+        portfolioShare={portfolioShare}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        dragHandleProps={{ ...attributes, ...listeners } as React.HTMLAttributes<HTMLElement>}
+      />
+    </div>
+  );
 }
 
 export default function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
@@ -78,9 +134,44 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
   const closeSnackbar = useCallback(() => setSnackbar((s) => ({ ...s, open: false })), []);
 
+  // ── Drag-and-drop ─────────────────────────────────────────────────────────
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragStart = useCallback(({ active }: DragStartEvent) => {
+    setDraggingId(active.id as string);
+  }, []);
+
+  const handleDragEnd = useCallback(({ active, over }: DragEndEvent) => {
+    setDraggingId(null);
+    if (!over || active.id === over.id) return;
+
+    setBaseEnvelopes((prev) => {
+      const oldIndex = prev.findIndex((e) => e.id === active.id);
+      const newIndex = prev.findIndex((e) => e.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+      const reordered = arrayMove(prev, oldIndex, newIndex).map((e, i) => ({ ...e, order: i }));
+      // Persist the new order in the background; UI is already updated optimistically.
+      db.updateEnvelopeOrders(userId, reordered.map(({ id, order }) => ({ id, order: order! }))).catch(
+        (err) => console.error('Failed to persist envelope order:', err),
+      );
+      return reordered;
+    });
+  }, [userId]);
+
   // ── Remote data state ─────────────────────────────────────────────────────
   const [baseEnvelopes, setBaseEnvelopes] = useState<Envelope[]>([]);
+  // Keep the latest baseEnvelopes in a ref so the DnD handlers can always read
+  // the current list without being listed as effect dependencies.
+  const baseEnvelopesRef = useRef(baseEnvelopes);
+  useEffect(() => { baseEnvelopesRef.current = baseEnvelopes; }, [baseEnvelopes]);
+
   const [incomeHistory, setIncomeHistory] = useState<IncomeEntry[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
@@ -89,14 +180,20 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
     async function load() {
       setDataLoading(true);
       try {
-        const [envelopes, incomes] = await Promise.all([
+        // fetchAssets is non-fatal: the table may not exist yet if the migration
+        // hasn't been run. A missing table returns [] so envelopes/incomes still load.
+        const [envelopes, incomes, fetchedAssets] = await Promise.all([
           db.fetchEnvelopes(userId),
           db.fetchIncomes(userId),
+          db.fetchAssets(userId).catch((err) => {
+            console.warn('fetchAssets failed (table may not exist yet):', err);
+            return [] as import('../types/asset').Asset[];
+          }),
         ]);
         if (cancelled) return;
 
         if (envelopes.length === 0) {
-          // Seed with fresh UUIDs, then re-fetch to get the real DB rows
+          // Seed with fresh UUIDs only for brand-new accounts, then re-fetch.
           await Promise.all(mockEnvelopes.map((e) => db.upsertEnvelope(userId, e)));
           const seeded = await db.fetchEnvelopes(userId);
           if (!cancelled) setBaseEnvelopes(seeded);
@@ -104,6 +201,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           setBaseEnvelopes(envelopes);
         }
         setIncomeHistory(incomes);
+        setAssets(fetchedAssets);
       } catch (err) {
         console.error('Failed to load data from Supabase:', err);
       } finally {
@@ -116,9 +214,16 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
   }, [userId]);
 
   // ── Derived state ─────────────────────────────────────────────────────────
+  // Always sort by `order` before computing or rendering so the user-defined
+  // sequence is preserved everywhere (grid, chart, allocation, history).
+  const sortedBaseEnvelopes = useMemo(
+    () => [...baseEnvelopes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [baseEnvelopes],
+  );
+
   const envelopes = useMemo(
-    () => recalculateEnvelopes(baseEnvelopes, incomeHistory),
-    [baseEnvelopes, incomeHistory],
+    () => recalculateEnvelopes(sortedBaseEnvelopes, incomeHistory),
+    [sortedBaseEnvelopes, incomeHistory],
   );
 
   // Single contextual recommendation evaluated in priority order.
@@ -241,20 +346,38 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
   // ── Envelope handlers ─────────────────────────────────────────────────────
   const handleSaveEnvelope = useCallback(
-    (data: Omit<Envelope, 'id'>, id?: string) => {
-      const newId = id ?? crypto.randomUUID();
-      const envelope: Envelope = { id: newId, ...data };
-      setBaseEnvelopes((prev) =>
-        id ? prev.map((e) => (e.id === id ? envelope : e)) : [...prev, envelope],
-      );
-      setSnackbar({ open: true, message: id ? 'Enveloppe modifiée' : 'Enveloppe créée' });
-      db.upsertEnvelope(userId, data, newId).catch(async (err) => {
+    (data: Omit<Envelope, 'id'>, id: string) => {
+      const isNew = !baseEnvelopes.some((e) => e.id === id);
+      // New envelopes go at the end of the current list.
+      const order = isNew
+        ? baseEnvelopes.length
+        : (baseEnvelopes.find((e) => e.id === id)?.order ?? 0);
+      const envelope: Envelope = { id, ...data, order };
+
+      setBaseEnvelopes((prev) => {
+        const exists = prev.some((e) => e.id === id);
+        return exists ? prev.map((e) => (e.id === id ? envelope : e)) : [...prev, envelope];
+      });
+      setSnackbar({ open: true, message: isNew ? 'Enveloppe créée' : 'Enveloppe modifiée' });
+      db.upsertEnvelope(userId, { ...data, order }, id).catch(async (err) => {
         console.error('Failed to save envelope:', err);
         const fresh = await db.fetchEnvelopes(userId).catch(() => null);
-        if (fresh) setBaseEnvelopes(fresh);
+        if (!fresh) return;
+
+        if (!fresh.some((e) => e.id === id)) {
+          // The envelope was never written to the DB (total failure).
+          // Leave the optimistic local state so the user's work is not lost,
+          // but surface a warning so they know the save didn't persist.
+          console.warn('Envelope not found in DB after failed save — keeping optimistic state:', id);
+          setSnackbar({ open: true, message: "Erreur : l'enveloppe n'a pas pu être sauvegardée." });
+          return;
+        }
+
+        // Envelope is in the DB; update local state with the authoritative version.
+        setBaseEnvelopes(fresh);
       });
     },
-    [userId],
+    [userId, baseEnvelopes],
   );
 
   const handleDeleteEnvelope = useCallback((id: string) => {
@@ -264,6 +387,35 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       console.error('Failed to delete envelope:', err);
       const fresh = await db.fetchEnvelopes(userId).catch(() => null);
       if (fresh) setBaseEnvelopes(fresh);
+    });
+  }, [userId]);
+
+  // ── Asset handlers ────────────────────────────────────────────────────────
+  const handleSaveAsset = useCallback(
+    (envelopeId: string, data: Omit<Asset, 'id' | 'envelopeId'>, assetId?: string) => {
+      const id = assetId ?? crypto.randomUUID();
+      const asset: Asset = { id, envelopeId, ...data };
+      setAssets((prev) => {
+        const exists = prev.some((a) => a.id === id);
+        // Replace existing or add; also evict any other asset for the same envelope.
+        const without = prev.filter((a) => a.envelopeId !== envelopeId || a.id === id);
+        return exists ? without.map((a) => (a.id === id ? asset : a)) : [...without, asset];
+      });
+      db.upsertAsset(userId, { envelopeId, ...data }, id).catch(async (err) => {
+        console.error('Failed to save asset:', err);
+        const fresh = await db.fetchAssets(userId).catch(() => null);
+        if (fresh) setAssets(fresh);
+      });
+    },
+    [userId],
+  );
+
+  const handleDeleteAsset = useCallback((assetId: string) => {
+    setAssets((prev) => prev.filter((a) => a.id !== assetId));
+    db.deleteAsset(assetId).catch(async (err) => {
+      console.error('Failed to delete asset:', err);
+      const fresh = await db.fetchAssets(userId).catch(() => null);
+      if (fresh) setAssets(fresh);
     });
   }, [userId]);
 
@@ -569,27 +721,53 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           </Stack>
         </Paper>
       ) : (
-        <Box
-          display="grid"
-          sx={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
-          gap={3}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
         >
-          {(() => {
-            const portfolioTotal = envelopes.reduce((sum, e) => sum + (Number(e.currentAmount) || 0), 0);
-            return envelopes.map((envelope) => (
-              <EnvelopeCard
-                key={envelope.id}
-                envelope={envelope}
-                portfolioShare={portfolioTotal > 0 ? ((Number(envelope.currentAmount) || 0) / portfolioTotal) * 100 : undefined}
-                onEdit={() => {
-                  setEditingEnvelope(envelope);
-                  setEnvelopeDialogOpen(true);
-                }}
-                onDelete={() => handleDeleteEnvelope(envelope.id)}
-              />
-            ));
-          })()}
-        </Box>
+          <SortableContext items={envelopes.map((e) => e.id)} strategy={rectSortingStrategy}>
+            <Box
+              display="grid"
+              sx={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
+              gap={3}
+            >
+              {(() => {
+                const portfolioTotal = envelopes.reduce((sum, e) => sum + (Number(e.currentAmount) || 0), 0);
+                return envelopes.map((envelope) => (
+                  <SortableCard
+                    key={envelope.id}
+                    envelope={envelope}
+                    portfolioShare={portfolioTotal > 0 ? ((Number(envelope.currentAmount) || 0) / portfolioTotal) * 100 : undefined}
+                    onEdit={() => {
+                      setEditingEnvelope(envelope);
+                      setEnvelopeDialogOpen(true);
+                    }}
+                    onDelete={() => handleDeleteEnvelope(envelope.id)}
+                  />
+                ));
+              })()}
+            </Box>
+          </SortableContext>
+
+          {/* Floating card rendered at the pointer while dragging */}
+          <DragOverlay adjustScale={false} dropAnimation={{ duration: 180, easing: 'ease' }}>
+            {draggingId ? (() => {
+              const draggingEnvelope = envelopes.find((e) => e.id === draggingId);
+              if (!draggingEnvelope) return null;
+              const portfolioTotal = envelopes.reduce((sum, e) => sum + (Number(e.currentAmount) || 0), 0);
+              return (
+                <Box sx={{ transform: 'rotate(1.5deg)', boxShadow: '0 24px 60px rgba(0,0,0,0.55)', borderRadius: 3 }}>
+                  <EnvelopeCard
+                    envelope={draggingEnvelope}
+                    portfolioShare={portfolioTotal > 0 ? ((Number(draggingEnvelope.currentAmount) || 0) / portfolioTotal) * 100 : undefined}
+                  />
+                </Box>
+              );
+            })() : null}
+          </DragOverlay>
+        </DndContext>
       )}
 
       {/* Secondary sections — separated from primary content */}
@@ -777,6 +955,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         open={incomeDialogOpen}
         onClose={handleIncomeDialogClose}
         envelopes={envelopes}
+        assets={assets}
         onApply={handleApplyAllocation}
         initialAmount={editingIncome?.amount}
       />
@@ -786,7 +965,10 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         open={envelopeDialogOpen}
         onClose={handleEnvelopeDialogClose}
         onSave={handleSaveEnvelope}
+        onSaveAsset={handleSaveAsset}
+        onDeleteAsset={handleDeleteAsset}
         initialEnvelope={editingEnvelope ?? undefined}
+        initialAsset={editingEnvelope ? (assets.find((a) => a.envelopeId === editingEnvelope.id) ?? null) : null}
       />
 
       {/* Snackbar */}

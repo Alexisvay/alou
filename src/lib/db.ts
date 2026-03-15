@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { type Envelope } from '../types/envelope';
 import { type IncomeEntry } from '../types/income';
+import { type Asset } from '../types/asset';
 
 // ── Envelopes ──────────────────────────────────────────────────────────────────
 
@@ -13,12 +14,15 @@ export async function fetchEnvelopes(userId: string): Promise<Envelope[]> {
 
   if (error) throw error;
 
-  return (data ?? []).map((row) => ({
+  return (data ?? []).map((row, idx) => ({
     id: row.id as string,
     name: row.name as string,
     baseAmount: row.base_amount as number,
     targetAmount: row.target_amount as number,
     allocationPercentage: row.allocation_percentage as number,
+    // sort_order may be null if the migration hasn't been run yet — fall back to
+    // the fetch index so existing rows display in a sensible order.
+    order: (row.sort_order as number | null) ?? idx,
   }));
 }
 
@@ -27,8 +31,10 @@ export async function upsertEnvelope(
   data: Omit<Envelope, 'id'>,
   id?: string,
 ): Promise<Envelope> {
-  const row = {
-    id: id ?? crypto.randomUUID(),
+  const resolvedId = id ?? crypto.randomUUID();
+
+  const coreRow = {
+    id: resolvedId,
     user_id: userId,
     name: data.name,
     base_amount: data.baseAmount,
@@ -36,21 +42,58 @@ export async function upsertEnvelope(
     allocation_percentage: data.allocationPercentage ?? 0,
   };
 
+  // Primary: include sort_order (requires the migration to have been run).
+  // Fallback: omit sort_order so the save always succeeds even on older schemas.
   const { data: saved, error } = await supabase
     .from('envelopes')
-    .upsert(row)
+    .upsert({ ...coreRow, sort_order: data.order ?? 0 })
     .select()
     .single();
 
-  if (error) throw error;
+  if (!error) {
+    return {
+      id: saved.id as string,
+      name: saved.name as string,
+      baseAmount: saved.base_amount as number,
+      targetAmount: saved.target_amount as number,
+      allocationPercentage: saved.allocation_percentage as number,
+      order: (saved.sort_order as number | null) ?? 0,
+    };
+  }
+
+  // sort_order column may not exist yet — retry without it.
+  const { data: saved2, error: error2 } = await supabase
+    .from('envelopes')
+    .upsert(coreRow)
+    .select()
+    .single();
+
+  if (error2) throw error2;
 
   return {
-    id: saved.id as string,
-    name: saved.name as string,
-    baseAmount: saved.base_amount as number,
-    targetAmount: saved.target_amount as number,
-    allocationPercentage: saved.allocation_percentage as number,
+    id: saved2.id as string,
+    name: saved2.name as string,
+    baseAmount: saved2.base_amount as number,
+    targetAmount: saved2.target_amount as number,
+    allocationPercentage: saved2.allocation_percentage as number,
+    order: 0,
   };
+}
+
+/** Batch-update only the sort_order of a set of envelopes. */
+export async function updateEnvelopeOrders(
+  userId: string,
+  orders: { id: string; order: number }[],
+): Promise<void> {
+  await Promise.all(
+    orders.map(({ id, order }) =>
+      supabase
+        .from('envelopes')
+        .update({ sort_order: order })
+        .eq('id', id)
+        .eq('user_id', userId),
+    ),
+  );
 }
 
 export async function deleteEnvelope(id: string): Promise<void> {
@@ -119,5 +162,80 @@ export async function upsertIncome(userId: string, entry: IncomeEntry): Promise<
 
 export async function deleteIncome(id: string): Promise<void> {
   const { error } = await supabase.from('incomes').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── Assets ─────────────────────────────────────────────────────────────────────
+
+export async function fetchAssets(userId: string): Promise<Asset[]> {
+  const { data, error } = await supabase
+    .from('assets')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    envelopeId: row.envelope_id as string,
+    name: row.name as string,
+    isin: row.isin as string,
+    // Optional columns added in a later migration — may be absent in older rows.
+    symbol: (row.symbol as string | null) ?? undefined,
+    unitPrice: row.unit_price as number,
+    currency: (row.currency as string | null) ?? 'EUR',
+    quantity: row.quantity as number,
+    isFractional: row.is_fractional as boolean,
+    assetType: (row.asset_type as string | null) ?? undefined,
+  }));
+}
+
+export async function upsertAsset(
+  userId: string,
+  data: Omit<Asset, 'id'>,
+  id?: string,
+): Promise<Asset> {
+  // Core columns always present.
+  const row: Record<string, unknown> = {
+    id: id ?? crypto.randomUUID(),
+    user_id: userId,
+    envelope_id: data.envelopeId,
+    name: data.name,
+    isin: data.isin,
+    unit_price: data.unitPrice,
+    quantity: data.quantity,
+    is_fractional: data.isFractional,
+  };
+
+  // Optional columns: only include if the value is non-empty so the upsert
+  // doesn't fail when the migration adding these columns hasn't been run yet.
+  if (data.symbol) row.symbol = data.symbol;
+  if (data.currency) row.currency = data.currency;
+  if (data.assetType) row.asset_type = data.assetType;
+
+  const { data: saved, error } = await supabase
+    .from('assets')
+    .upsert(row)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    id: saved.id as string,
+    envelopeId: saved.envelope_id as string,
+    name: saved.name as string,
+    isin: saved.isin as string,
+    symbol: (saved.symbol as string | null) ?? undefined,
+    unitPrice: saved.unit_price as number,
+    currency: (saved.currency as string | null) ?? 'EUR',
+    quantity: saved.quantity as number,
+    isFractional: saved.is_fractional as boolean,
+    assetType: (saved.asset_type as string | null) ?? undefined,
+  };
+}
+
+export async function deleteAsset(id: string): Promise<void> {
+  const { error } = await supabase.from('assets').delete().eq('id', id);
   if (error) throw error;
 }

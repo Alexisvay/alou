@@ -4,6 +4,8 @@ export interface Envelope {
   baseAmount: number;
   targetAmount: number;
   allocationPercentage?: number;
+  /** Display order index (0-based). Lower values appear first. */
+  order?: number;
 }
 
 /** Envelope with currentAmount derived from baseAmount + income allocations. */

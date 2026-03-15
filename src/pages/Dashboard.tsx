@@ -372,13 +372,11 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       )}
 
       {/* Portfolio summary */}
-      <Box mb={4}>
-        <PortfolioSummary envelopes={envelopes} />
-      </Box>
+      <PortfolioSummary envelopes={envelopes} />
 
-      {/* Section enveloppes */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mt={5} mb={2}>
-        <Typography variant="h6" display="flex" alignItems="center" gap={1}>
+      {/* Section enveloppes — primary section */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mt={6} mb={2.5}>
+        <Typography variant="h6" fontWeight={700} display="flex" alignItems="center" gap={1}>
           <AccountBalanceIcon fontSize="small" sx={{ color: 'text.secondary' }} />
           Enveloppes
         </Typography>
@@ -397,15 +395,28 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
       {/* Grille de cards / empty state */}
       {baseEnvelopes.length === 0 ? (
-        <Paper variant="outlined" sx={{ p: 6 }}>
-          <Stack alignItems="center" spacing={1.5} textAlign="center">
-            <AddIcon sx={{ fontSize: 40, color: 'text.disabled' }} />
-            <Typography variant="h6" fontWeight={600}>
-              Aucune enveloppe configurée
-            </Typography>
-            <Typography variant="body2" color="text.secondary" maxWidth={380}>
-              Créez votre première enveloppe pour commencer à organiser votre portefeuille.
-            </Typography>
+        <Paper variant="outlined" sx={{ py: { xs: 6, sm: 8 }, px: { xs: 3, sm: 6 } }}>
+          <Stack alignItems="center" spacing={2.5} textAlign="center">
+            <Box sx={{
+              width: 52,
+              height: 52,
+              borderRadius: '50%',
+              bgcolor: 'rgba(77, 107, 255, 0.1)',
+              border: '1px solid rgba(77, 107, 255, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <AccountBalanceIcon sx={{ fontSize: 22, color: 'primary.light' }} />
+            </Box>
+            <Box>
+              <Typography variant="body1" fontWeight={600} mb={0.75}>
+                Aucune enveloppe configurée
+              </Typography>
+              <Typography variant="body2" color="text.secondary" maxWidth={340}>
+                Créez votre première enveloppe pour commencer à organiser votre portefeuille.
+              </Typography>
+            </Box>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -413,7 +424,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
                 setEditingEnvelope(null);
                 setEnvelopeDialogOpen(true);
               }}
-              sx={{ mt: 1 }}
             >
               Créer une enveloppe
             </Button>
@@ -443,8 +453,11 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         </Box>
       )}
 
+      {/* Secondary sections — separated from primary content */}
+      <Divider sx={{ mt: 7, mb: 6, borderColor: 'rgba(255,255,255,0.05)' }} />
+
       {/* Graphique de répartition */}
-      <Box mt={5}>
+      <Box>
         <Typography variant="h6" display="flex" alignItems="center" gap={1} mb={2}>
           <DonutLargeIcon fontSize="small" sx={{ color: 'text.secondary' }} />
           Répartition du portefeuille
@@ -453,21 +466,34 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       </Box>
 
       {/* Historique des revenus */}
-      <Box mt={5}>
+      <Box mt={6}>
         <Typography variant="h6" display="flex" alignItems="center" gap={1} mb={2}>
           <HistoryIcon fontSize="small" sx={{ color: 'text.secondary' }} />
           Historique des revenus
         </Typography>
       {incomeHistory.length === 0 ? (
-          <Paper variant="outlined" sx={{ p: 6 }}>
-            <Stack alignItems="center" spacing={1.5} textAlign="center">
-              <HistoryIcon sx={{ fontSize: 40, color: 'text.disabled' }} />
-              <Typography variant="h6" fontWeight={600}>
-                Aucun revenu enregistré
-              </Typography>
-              <Typography variant="body2" color="text.secondary" maxWidth={380}>
-                Commencez par déclarer votre premier revenu pour voir comment il se répartit dans vos enveloppes.
-              </Typography>
+          <Paper variant="outlined" sx={{ py: { xs: 6, sm: 8 }, px: { xs: 3, sm: 6 } }}>
+            <Stack alignItems="center" spacing={2.5} textAlign="center">
+              <Box sx={{
+                width: 52,
+                height: 52,
+                borderRadius: '50%',
+                bgcolor: 'rgba(77, 107, 255, 0.1)',
+                border: '1px solid rgba(77, 107, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <HistoryIcon sx={{ fontSize: 22, color: 'primary.light' }} />
+              </Box>
+              <Box>
+                <Typography variant="body1" fontWeight={600} mb={0.75}>
+                  Aucun revenu enregistré
+                </Typography>
+                <Typography variant="body2" color="text.secondary" maxWidth={340}>
+                  Déclarez votre premier revenu pour voir comment il se répartit dans vos enveloppes.
+                </Typography>
+              </Box>
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
@@ -475,7 +501,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
                   setEditingIncome(null);
                   setIncomeDialogOpen(true);
                 }}
-                sx={{ mt: 1 }}
               >
                 Déclarer un revenu
               </Button>

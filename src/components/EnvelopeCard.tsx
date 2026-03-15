@@ -123,7 +123,7 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
             sx={{
               height: 6,
               borderRadius: 4,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              backgroundColor: 'rgba(255, 255, 255, 0.07)',
               '& .MuiLinearProgress-bar': {
                 borderRadius: 4,
                 background: 'linear-gradient(90deg, #4D6BFF 0%, #8A9EFF 100%)',
@@ -152,7 +152,7 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
                     '&:hover': { color: 'primary.light', bgcolor: 'rgba(77, 107, 255, 0.1)' },
                   }}
                 >
-                  <EditIcon sx={{ fontSize: 14 }} />
+                  <EditIcon sx={{ fontSize: 15 }} />
                 </IconButton>
               </Tooltip>
             )}
@@ -166,7 +166,7 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
                     '&:hover': { color: 'error.main', bgcolor: 'rgba(211, 47, 47, 0.08)' },
                   }}
                 >
-                  <DeleteIcon sx={{ fontSize: 14 }} />
+                  <DeleteIcon sx={{ fontSize: 15 }} />
                 </IconButton>
               </Tooltip>
             )}

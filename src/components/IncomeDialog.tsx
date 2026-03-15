@@ -9,7 +9,6 @@ import {
   Box,
   Typography,
   Divider,
-  Stack,
 } from '@mui/material';
 import EuroIcon from '@mui/icons-material/Euro';
 import { type ComputedEnvelope } from '../types/envelope';

@@ -5,4 +5,5 @@ export interface IncomeEntry {
   amount: number;
   date: Date;
   allocations: AllocationResult[];
+  isManualAllocation: boolean;
 }

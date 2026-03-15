@@ -7,27 +7,51 @@ export interface AllocationResult {
 }
 
 /**
- * Distributes income proportionally to each envelope's remaining gap
- * (targetAmount - currentAmount). Envelopes that have reached their target
- * are ignored. Returns an empty array when all targets are already met.
+ * Distributes income using priority-based allocation.
+ *
+ * Priority score = 1 − (currentAmount / targetAmount)
+ *   → 1.00 when an envelope is empty
+ *   → 0.20 when it is 80 % funded
+ *   → 0.00 (excluded) when it has reached its target
+ *
+ * Income is split proportionally to these scores so envelopes furthest
+ * behind their goal receive the largest recommended share.
+ *
+ * All allocations are rounded to whole numbers.
+ * The last envelope absorbs any rounding remainder so the amounts always
+ * sum exactly to incomeAmount.
+ *
+ * Returns an empty array when all targets are already met (totalScore === 0).
  */
 export function calculateAllocation(
   income: number,
   envelopes: ComputedEnvelope[],
 ): AllocationResult[] {
-  const candidates = envelopes.map((e) => ({
-    envelope: e as Envelope,
-    remaining: Math.max(e.targetAmount - e.currentAmount, 0),
-  })).filter((c) => c.remaining > 0);
+  const candidates = envelopes
+    .filter((e) => e.targetAmount > 0 && e.currentAmount < e.targetAmount)
+    .map((e) => ({
+      envelope: e as Envelope,
+      priority: 1 - e.currentAmount / e.targetAmount,
+    }));
 
-  const totalRemaining = candidates.reduce((sum, c) => sum + c.remaining, 0);
+  const totalPriority = candidates.reduce((sum, c) => sum + c.priority, 0);
 
-  if (totalRemaining === 0) return [];
+  if (totalPriority === 0) return [];
 
-  return candidates.map(({ envelope, remaining }) => ({
-    envelope,
-    allocatedAmount: (remaining / totalRemaining) * income,
-  }));
+  // Work in whole numbers so allocations are always clean integers.
+  const incomeInt = Math.round(income);
+  let distributed = 0;
+
+  return candidates.map(({ envelope, priority }, i) => {
+    const isLast = i === candidates.length - 1;
+    // Last item absorbs rounding drift so the total equals incomeInt exactly.
+    const allocatedAmount = isLast
+      ? Math.max(0, incomeInt - distributed)
+      : Math.round((priority / totalPriority) * incomeInt);
+
+    distributed += allocatedAmount;
+    return { envelope, allocatedAmount };
+  });
 }
 
 /**

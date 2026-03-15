@@ -40,11 +40,12 @@ function AnimatedAmount({ amount }: { amount: number }) {
   return <>{formatCurrency(animated)}</>;
 }
 
+
 interface IncomeDialogProps {
   open: boolean;
   onClose: () => void;
   envelopes: ComputedEnvelope[];
-  onApply?: (results: AllocationResult[]) => void;
+  onApply?: (results: AllocationResult[], isManual: boolean) => void;
   initialAmount?: number;
 }
 
@@ -90,7 +91,62 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
     }, 0);
   }, [manualAmounts]);
 
-  const isManualValid = isValid && Math.abs(manualTotal - income) < 0.5;
+  // Valid when every field has a usable number and the sum matches (tolerance for float drift)
+  const isManualValid = isValid && Math.abs(manualTotal - income) < 0.5 &&
+    Object.values(manualAmounts).every((v) => v !== '' && !isNaN(parseFloat(v)));
+
+  // On every keystroke: lock the edited row, rebalance all others immediately.
+  // All arithmetic uses integers (cents) to avoid float drift causing React to
+  // skip DOM updates on controlled number inputs.
+  const handleManualChange = (envelopeId: string, rawValue: string) => {
+    if (!sortedResults || !isValid) return;
+
+    const parsed = parseFloat(rawValue);
+    const totalInt = Math.round(income); // work in whole numbers throughout
+
+    // How much the locked row contributes:
+    // empty/invalid → 0 for redistribution, keep raw string for display
+    const isEmpty = rawValue === '' || isNaN(parsed);
+    const lockedInt = isEmpty ? 0 : Math.max(0, Math.min(Math.round(parsed), totalInt));
+    const remainingInt = totalInt - lockedInt;
+
+    const others = sortedResults.filter((r) => r.envelope.id !== envelopeId);
+
+    // Build a completely fresh map — no stale values from previous state
+    const next: Record<string, string> = {};
+
+    // Edited field: show raw input so typing feels natural; clamped value otherwise
+    next[envelopeId] = isEmpty ? rawValue : String(lockedInt);
+
+    if (others.length === 0 || remainingInt <= 0) {
+      // Nothing left for the other rows
+      others.forEach((r) => { next[r.envelope.id] = '0'; });
+    } else {
+      // Proportional split using original auto-allocation weights.
+      // Last envelope absorbs any rounding remainder so the total is exact.
+      const weightsTotal = others.reduce((s, r) => s + r.allocatedAmount, 0);
+
+      if (weightsTotal <= 0) {
+        // Equal split when originals had no weights (edge case)
+        const base = Math.floor(remainingInt / others.length);
+        let leftover = remainingInt - base * others.length;
+        others.forEach((r) => { next[r.envelope.id] = String(base + (leftover-- > 0 ? 1 : 0)); });
+      } else {
+        let given = 0;
+        others.forEach((r, i) => {
+          if (i === others.length - 1) {
+            next[r.envelope.id] = String(Math.max(0, remainingInt - given));
+          } else {
+            const share = Math.round((r.allocatedAmount / weightsTotal) * remainingInt);
+            next[r.envelope.id] = String(share);
+            given += share;
+          }
+        });
+      }
+    }
+
+    setManualAmounts(next);
+  };
 
   const enterManualMode = () => {
     if (!sortedResults) return;
@@ -114,10 +170,10 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
         envelope,
         allocatedAmount: parseFloat(manualAmounts[envelope.id] || '0'),
       }));
-      onApply?.(manualResults);
+      onApply?.(manualResults, true);
     } else {
       if (!isValid || !results || results.length === 0) return;
-      onApply?.(results);
+      onApply?.(results, false);
     }
     onClose();
   };
@@ -126,8 +182,7 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
     ? isManualValid
     : isValid && !!results && results.length > 0;
 
-  const remainingDiff = isManual ? income - manualTotal : 0;
-  const totalColor = isManualValid ? '#00BFA5' : Math.abs(remainingDiff) < 1 ? '#00BFA5' : '#FF6B6B';
+  const totalColor = isManualValid ? '#00BFA5' : '#FF6B6B';
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
@@ -155,7 +210,7 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
           helperText={
             isManual
               ? 'Mode personnalisé — saisissez les montants manuellement.'
-              : 'Répartition calculée automatiquement selon vos objectifs.'
+              : 'Répartition recommandée selon l\'avancement de chaque enveloppe.'
           }
           sx={{
             mt: 0.5,
@@ -187,11 +242,38 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
               variant="caption"
               color="text.secondary"
               display="block"
-              mb={2}
+              mb={isManual ? 2 : 0.75}
               sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.65rem' }}
             >
-              {isManual ? 'Répartition personnalisée' : 'Répartition'} · {formatCurrency(income)}
+              {isManual ? 'Répartition personnalisée' : 'Répartition recommandée'} · {formatCurrency(income)}
             </Typography>
+
+            {/* Auto mode: explanation + top-priority hint */}
+            {!isManual && (
+              <Box mb={1.75}>
+                <Typography
+                  variant="caption"
+                  color="text.disabled"
+                  display="block"
+                  sx={{ fontSize: '0.7rem', lineHeight: 1.5 }}
+                >
+                  Cette suggestion privilégie les enveloppes les plus en retard par rapport à leurs objectifs.
+                </Typography>
+                {sortedResults.length > 1 && (
+                  <Typography
+                    variant="caption"
+                    display="block"
+                    mt={0.5}
+                    sx={{ fontSize: '0.7rem', color: 'text.disabled' }}
+                  >
+                    Priorité actuelle :{' '}
+                    <Box component="span" sx={{ color: 'primary.light', fontWeight: 600 }}>
+                      {sortedResults[0].envelope.name}
+                    </Box>
+                  </Typography>
+                )}
+              </Box>
+            )}
 
             {/* Allocation rows */}
             <Box
@@ -228,39 +310,45 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
                     )}
 
                     {isManual ? (
+                      // Wrapper Box carries the Emotion styles; the inner <input> is a
+                      // plain native element so React's controlled-input reconciliation
+                      // always updates the DOM value when manualAmounts changes.
                       <Box
-                        component="input"
-                        type="number"
-                        value={manualAmounts[envelope.id] ?? ''}
-                        onChange={(e) =>
-                          setManualAmounts((prev) => ({ ...prev, [envelope.id]: e.target.value }))
-                        }
                         sx={{
-                          width: 84,
-                          background: 'rgba(255,255,255,0.05)',
-                          border: '1px solid rgba(77, 107, 255, 0.3)',
-                          borderRadius: '6px',
-                          color: '#E2E8F0',
-                          fontSize: '0.8125rem',
-                          fontWeight: 600,
-                          fontFamily: 'inherit',
-                          fontVariantNumeric: 'tabular-nums',
-                          textAlign: 'right',
-                          outline: 'none',
-                          px: '8px',
-                          py: '5px',
-                          transition: 'border-color 0.15s',
-                          '&:focus': {
-                            borderColor: 'rgba(77, 107, 255, 0.7)',
-                            background: 'rgba(77, 107, 255, 0.08)',
+                          '& input[type=number]': {
+                            display: 'block',
+                            width: '84px',
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(77,107,255,0.3)',
+                            borderRadius: '6px',
+                            color: '#E2E8F0',
+                            fontSize: '0.8125rem',
+                            fontWeight: 600,
+                            fontFamily: 'inherit',
+                            fontVariantNumeric: 'tabular-nums',
+                            textAlign: 'right',
+                            outline: 'none',
+                            padding: '5px 8px',
+                            boxSizing: 'border-box',
+                            transition: 'border-color 0.15s, background 0.15s',
+                            MozAppearance: 'textfield',
                           },
-                          '&::-webkit-outer-spin-button, &::-webkit-inner-spin-button': {
-                            WebkitAppearance: 'none',
-                            margin: 0,
+                          '& input[type=number]:focus': {
+                            borderColor: 'rgba(77,107,255,0.7)',
+                            background: 'rgba(77,107,255,0.08)',
                           },
-                          '&[type=number]': { MozAppearance: 'textfield' },
+                          '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
+                          '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 },
                         }}
-                      />
+                      >
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={manualAmounts[envelope.id] ?? ''}
+                          onChange={(e) => handleManualChange(envelope.id, e.target.value)}
+                        />
+                      </Box>
                     ) : (
                       <Typography variant="body2" fontWeight={700} color="text.primary" textAlign="right" sx={{ minWidth: 72, fontVariantNumeric: 'tabular-nums' }}>
                         <AnimatedAmount amount={allocatedAmount} />
@@ -271,25 +359,17 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
               })}
             </Box>
 
-            {/* Manual mode: total summary + back button */}
+            {/* Manual mode: total summary + reset button */}
             {isManual && (
-              <Box mt={2} display="flex" alignItems="center" justifyContent="space-between">
-                <Button
-                  size="small"
-                  color="inherit"
-                  startIcon={<AutorenewRoundedIcon sx={{ fontSize: '0.9rem !important' }} />}
-                  onClick={exitManualMode}
-                  sx={{
-                    fontSize: '0.75rem',
-                    color: 'text.secondary',
-                    px: 0,
-                    '&:hover': { color: 'text.primary', background: 'transparent' },
-                  }}
-                  disableRipple
-                >
-                  Automatique
-                </Button>
-                <Box textAlign="right">
+              <Box mt={2}>
+                {/* Total summary — right aligned */}
+                <Box display="flex" justifyContent="flex-end" alignItems="baseline" gap={1}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.disabled', fontSize: '0.7rem' }}
+                  >
+                    Total réparti
+                  </Typography>
                   <Typography
                     variant="caption"
                     sx={{
@@ -301,13 +381,24 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
                   >
                     {formatCurrency(manualTotal)} / {formatCurrency(income)}
                   </Typography>
-                  {!isManualValid && Math.abs(remainingDiff) > 0.5 && (
-                    <Typography variant="caption" display="block" sx={{ color: 'rgba(255,107,107,0.8)', fontSize: '0.68rem', mt: 0.25 }}>
-                      {remainingDiff > 0
-                        ? `${formatCurrency(remainingDiff)} restant à répartir`
-                        : `Dépassement de ${formatCurrency(Math.abs(remainingDiff))}`}
-                    </Typography>
-                  )}
+                </Box>
+                {/* Reset to automatic */}
+                <Box mt={1.5}>
+                  <Button
+                    size="small"
+                    color="inherit"
+                    startIcon={<AutorenewRoundedIcon sx={{ fontSize: '0.85rem !important' }} />}
+                    onClick={exitManualMode}
+                    sx={{
+                      fontSize: '0.75rem',
+                      color: 'text.secondary',
+                      px: 0,
+                      '&:hover': { color: 'text.primary', background: 'transparent' },
+                    }}
+                    disableRipple
+                  >
+                    Revenir à la répartition automatique
+                  </Button>
                 </Box>
               </Box>
             )}

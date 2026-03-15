@@ -24,6 +24,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import DonutLargeIcon from '@mui/icons-material/DonutLarge';
+import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import EnvelopeCard from '../components/EnvelopeCard';
 import IncomeDialog from '../components/IncomeDialog';
 import EnvelopeDialog from '../components/EnvelopeDialog';
@@ -185,11 +186,11 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
   // ── Income handlers ───────────────────────────────────────────────────────
   const handleApplyAllocation = useCallback(
-    (results: AllocationResult[]) => {
+    (results: AllocationResult[], isManual: boolean) => {
       const amount = results.reduce((sum, r) => sum + r.allocatedAmount, 0);
       const entry: IncomeEntry = editingIncome
-        ? { ...editingIncome, amount, allocations: results }
-        : { id: crypto.randomUUID(), amount, date: new Date(), allocations: results };
+        ? { ...editingIncome, amount, allocations: results, isManualAllocation: isManual }
+        : { id: crypto.randomUUID(), amount, date: new Date(), allocations: results, isManualAllocation: isManual };
 
       setIncomeHistory((prev) =>
         editingIncome
@@ -201,7 +202,23 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       db.upsertIncome(userId, entry).catch(async (err) => {
         console.error('Failed to save income:', err);
         const fresh = await db.fetchIncomes(userId).catch(() => null);
-        if (fresh) setIncomeHistory(fresh);
+        if (!fresh) return;
+
+        const entryInDb = fresh.find((e) => e.id === entry.id);
+        if (!entryInDb) {
+          // The entry was never written to the DB (e.g. network failure on a new entry).
+          // The optimistic local state already has the correct data — leave it alone.
+          return;
+        }
+
+        // The entry is in the DB but the re-fetched version may lack the
+        // isManualAllocation flag (e.g. the fallback array format was used).
+        // Restore the flag from the local entry we just applied.
+        setIncomeHistory(
+          fresh.map((e) =>
+            e.id === entry.id ? { ...e, isManualAllocation: entry.isManualAllocation } : e,
+          ),
+        );
       });
     },
     [userId, editingIncome],
@@ -643,6 +660,29 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
                       <Typography variant="caption" color="text.disabled" display="block" mt={0.25}>
                         {formatDate(entry.date)}
                       </Typography>
+                      {entry.isManualAllocation && (
+                        <Box
+                          display="inline-flex"
+                          alignItems="center"
+                          gap={0.5}
+                          mt={0.75}
+                          sx={{
+                            px: 0.875,
+                            py: 0.25,
+                            borderRadius: '5px',
+                            bgcolor: 'rgba(77, 107, 255, 0.1)',
+                            border: '1px solid rgba(77, 107, 255, 0.22)',
+                          }}
+                        >
+                          <TuneRoundedIcon sx={{ fontSize: 10, color: 'primary.light' }} />
+                          <Typography
+                            variant="caption"
+                            sx={{ fontSize: '0.67rem', color: 'primary.light', lineHeight: 1, fontWeight: 500 }}
+                          >
+                            Répartition personnalisée
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
                     <Box display="flex" gap={0.25} flexShrink={0} mt={-0.25}>
                       <Tooltip title="Modifier">

@@ -16,6 +16,29 @@ import { type ComputedEnvelope } from '../types/envelope';
 import { calculateAllocation, type AllocationResult } from '../utils/calculateAllocation';
 import { formatCurrency } from '../utils/format';
 
+// Animates a number from 0 to `target` over `duration` ms with ease-out cubic easing.
+function useCountUp(target: number, duration = 380): number {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    let raf: number;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(Math.round(target * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return value;
+}
+
+function AnimatedAmount({ amount }: { amount: number }) {
+  const animated = useCountUp(amount);
+  return <>{formatCurrency(animated)}</>;
+}
+
 interface IncomeDialogProps {
   open: boolean;
   onClose: () => void;
@@ -70,14 +93,23 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
           label="Montant"
           type="number"
           fullWidth
+          autoFocus
           value={incomeInput}
           onChange={(e) => setIncomeInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleApply(); }}
           inputProps={{ min: 0, step: 1 }}
           InputProps={{
-            startAdornment: <EuroIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />,
+            startAdornment: <EuroIcon sx={{ mr: 1, color: 'text.secondary', fontSize: '1.1rem' }} />,
           }}
           helperText="Répartition calculée automatiquement selon vos objectifs."
-          sx={{ mt: 0.5 }}
+          sx={{
+            mt: 0.5,
+            '& .MuiInputBase-input': {
+              fontSize: '1.25rem',
+              fontWeight: 600,
+              letterSpacing: '-0.25px',
+            },
+          }}
         />
 
         {/* Tous les objectifs atteints */}
@@ -103,38 +135,42 @@ export default function IncomeDialog({ open, onClose, envelopes, onApply, initia
             >
               Répartition · {formatCurrency(income)}
             </Typography>
-            <Stack spacing={1}>
-              {[...results].sort((a, b) => b.allocatedAmount - a.allocatedAmount).map(({ envelope, allocatedAmount }) => {
+            <Box
+              sx={{
+                borderRadius: 1.5,
+                border: '1px solid rgba(77, 107, 255, 0.18)',
+                overflow: 'hidden',
+              }}
+            >
+              {[...results].sort((a, b) => b.allocatedAmount - a.allocatedAmount).map(({ envelope, allocatedAmount }, i, arr) => {
                 const pct = income > 0 ? (allocatedAmount / income) * 100 : 0;
                 return (
                   <Box
                     key={envelope.id}
-                    display="flex"
-                    justifyContent="space-between"
+                    display="grid"
+                    gridTemplateColumns="1fr auto auto"
                     alignItems="center"
+                    gap={2}
                     sx={{
                       px: 2,
                       py: 1.25,
-                      borderRadius: 2,
-                      bgcolor: 'rgba(77, 107, 255, 0.1)',
-                      border: '1px solid rgba(77, 107, 255, 0.2)',
+                      bgcolor: i % 2 === 0 ? 'rgba(77, 107, 255, 0.07)' : 'rgba(77, 107, 255, 0.04)',
+                      borderBottom: i < arr.length - 1 ? '1px solid rgba(255, 255, 255, 0.06)' : 'none',
                     }}
                   >
-                    <Box>
-                      <Typography variant="body2" fontWeight={600} color="text.primary">
-                        {envelope.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {pct.toFixed(1)}%
-                      </Typography>
-                    </Box>
-                    <Typography variant="h5" color="primary.light">
-                      {formatCurrency(allocatedAmount)}
+                    <Typography variant="body2" fontWeight={500} color="text.primary" noWrap>
+                      {envelope.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled" textAlign="right" sx={{ minWidth: 36 }}>
+                      {pct.toFixed(0)}%
+                    </Typography>
+                    <Typography variant="body2" fontWeight={700} color="text.primary" textAlign="right" sx={{ minWidth: 72, fontVariantNumeric: 'tabular-nums' }}>
+                      <AnimatedAmount amount={allocatedAmount} />
                     </Typography>
                   </Box>
                 );
               })}
-            </Stack>
+            </Box>
           </Box>
         )}
       </DialogContent>

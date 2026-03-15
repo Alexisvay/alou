@@ -124,7 +124,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           : [entry, ...prev],
       );
       setEditingIncome(null);
-      setSnackbar({ open: true, message: editingIncome ? 'Revenu modifié' : 'Revenu ajouté' });
+      setSnackbar({ open: true, message: editingIncome ? 'Revenu modifié' : 'Revenu réparti dans vos enveloppes' });
       db.upsertIncome(userId, entry).catch(async (err) => {
         console.error('Failed to save income:', err);
         const fresh = await db.fetchIncomes(userId).catch(() => null);

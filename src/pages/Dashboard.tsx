@@ -17,6 +17,7 @@ import {
   Fab,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import CloseIcon from '@mui/icons-material/Close';
 import HistoryIcon from '@mui/icons-material/History';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -42,6 +43,15 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
+  // ── Recommendation dismissed state ────────────────────────────────────────
+  const [recommendationDismissed, setRecommendationDismissed] = useState(
+    () => localStorage.getItem('recommendationDismissed') === 'true',
+  );
+  const dismissRecommendation = useCallback(() => {
+    localStorage.setItem('recommendationDismissed', 'true');
+    setRecommendationDismissed(true);
+  }, []);
+
   // ── Scroll state for sticky header ────────────────────────────────────────
   const [isScrolled, setIsScrolled] = useState(false);
   useEffect(() => {
@@ -108,6 +118,20 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
   const envelopes = useMemo(
     () => recalculateEnvelopes(baseEnvelopes, incomeHistory),
     [baseEnvelopes, incomeHistory],
+  );
+
+  // Envelope with the largest remaining gap — receives the most from the next income.
+  const priorityEnvelope = useMemo(() => {
+    const candidates = envelopes
+      .map((e) => ({ name: e.name, remaining: Math.max(e.targetAmount - e.currentAmount, 0) }))
+      .filter((c) => c.remaining > 0);
+    if (candidates.length < 2) return null;
+    return candidates.reduce((best, c) => (c.remaining > best.remaining ? c : best));
+  }, [envelopes]);
+
+  const allTargetsMet = useMemo(
+    () => envelopes.length > 0 && envelopes.every((e) => e.currentAmount >= e.targetAmount),
+    [envelopes],
   );
 
   // ── Income handlers ───────────────────────────────────────────────────────
@@ -375,7 +399,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       <PortfolioSummary envelopes={envelopes} />
 
       {/* Section enveloppes — primary section */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mt={6} mb={2.5}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mt={6} mb={2}>
         <Typography variant="h6" fontWeight={700} display="flex" alignItems="center" gap={1}>
           <AccountBalanceIcon fontSize="small" sx={{ color: 'text.secondary' }} />
           Enveloppes
@@ -392,6 +416,61 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         </Button>
       </Box>
 
+      {(priorityEnvelope || allTargetsMet) && !recommendationDismissed && (
+        <Box
+          mb={2.5}
+          sx={{
+            pl: 2,
+            pr: 1,
+            py: 1.25,
+            borderLeft: '2px solid rgba(138, 158, 255, 0.28)',
+            bgcolor: 'rgba(77, 107, 255, 0.04)',
+            borderRadius: '0 10px 10px 0',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 1,
+          }}
+        >
+          <Box>
+            <Typography
+              variant="caption"
+              color="text.disabled"
+              display="block"
+              mb={0.5}
+              sx={{ textTransform: 'uppercase', letterSpacing: '0.09em', fontSize: '0.6rem' }}
+            >
+              Recommandation
+            </Typography>
+            {allTargetsMet ? (
+              <Typography variant="body2" color="text.secondary">
+                Tous les objectifs sont atteints.
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                <Box component="span" sx={{ color: 'text.primary', fontWeight: 600 }}>
+                  {priorityEnvelope!.name}
+                </Box>
+                {' '}reçoit actuellement la plus grande part de vos prochains revenus.
+              </Typography>
+            )}
+          </Box>
+          <Tooltip title="Fermer">
+            <IconButton
+              size="small"
+              onClick={dismissRecommendation}
+              sx={{
+                color: 'text.disabled',
+                flexShrink: 0,
+                mt: -0.25,
+                '&:hover': { color: 'text.secondary', bgcolor: 'rgba(255,255,255,0.05)' },
+              }}
+            >
+              <CloseIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      )}
 
       {/* Grille de cards / empty state */}
       {baseEnvelopes.length === 0 ? (

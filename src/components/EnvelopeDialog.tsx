@@ -22,11 +22,14 @@ import { type Asset } from '../types/asset';
 // ── ISIN resolution ────────────────────────────────────────────────────────────
 
 interface ResolvedAsset {
+  isin: string;
   name: string;
   symbol: string;
   unitPrice: number;
-  currency: string;
-  assetType: string | null;
+  // Optional: present when loaded from an existing saved asset, absent when
+  // freshly resolved from the API (FMP stable/search-isin does not return them).
+  currency?: string;
+  assetType?: string | null;
 }
 
 type ResolveStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -34,21 +37,57 @@ type ResolveStatus = 'idle' | 'loading' | 'success' | 'error';
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{10}$/;
 
 async function resolveIsin(isin: string): Promise<ResolvedAsset> {
-  const res = await fetch(`/api/resolve-isin?isin=${encodeURIComponent(isin)}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? 'Résolution échouée');
-  return data as ResolvedAsset;
+  const FALLBACK = 'Impossible de résoudre cet ISIN pour le moment.';
+
+  let res: Response;
+  try {
+    res = await fetch(`/api/resolve-isin?isin=${encodeURIComponent(isin)}`);
+  } catch {
+    // Network failure (offline, CORS, DNS, …)
+    throw new Error(FALLBACK);
+  }
+
+  // Parse defensively — the endpoint always returns JSON, but guard against
+  // HTML error pages (Vite dev fallback, CDN errors, etc.).
+  let body: unknown;
+  try {
+    const text = await res.text();
+    body = JSON.parse(text);
+  } catch {
+    throw new Error(FALLBACK);
+  }
+
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !(body as Record<string, unknown>).success
+  ) {
+    const msg = (body as { error?: string } | null)?.error;
+    throw new Error(typeof msg === 'string' ? msg : FALLBACK);
+  }
+
+  const { asset } = body as { success: true; asset?: ResolvedAsset };
+  if (!asset?.symbol || !asset.name) {
+    throw new Error(FALLBACK);
+  }
+
+  return asset;
 }
+
+// ── Asset action ──────────────────────────────────────────────────────────────
+
+export type AssetAction =
+  | { type: 'upsert'; data: Omit<Asset, 'id' | 'envelopeId'>; id?: string }
+  | { type: 'delete'; id: string }
+  | null;
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface EnvelopeDialogProps {
   open: boolean;
   onClose: () => void;
-  /** id is always provided so the dialog can correlate asset saves with the envelope. */
-  onSave: (data: Omit<Envelope, 'id'>, id: string) => void;
-  onSaveAsset?: (envelopeId: string, data: Omit<Asset, 'id' | 'envelopeId'>, assetId?: string) => void;
-  onDeleteAsset?: (assetId: string) => void;
+  /** Envelope data + a resolved asset action so the parent can sequence DB writes. */
+  onSave: (data: Omit<Envelope, 'id'>, id: string, assetAction: AssetAction) => void;
   initialEnvelope?: Envelope;
   initialAsset?: Asset | null;
 }
@@ -75,8 +114,6 @@ export default function EnvelopeDialog({
   open,
   onClose,
   onSave,
-  onSaveAsset,
-  onDeleteAsset,
   initialEnvelope,
   initialAsset,
 }: EnvelopeDialogProps) {
@@ -91,9 +128,11 @@ export default function EnvelopeDialog({
   // ── Asset state ────────────────────────────────────────────────────────────
   const [showAsset, setShowAsset] = useState(false);
   const [assetIsin, setAssetIsin] = useState('');
+  const [assetName, setAssetName] = useState('');
+  const [assetSymbol, setAssetSymbol] = useState('');
+  const [assetUnitPrice, setAssetUnitPrice] = useState('');
   const [assetQuantity, setAssetQuantity] = useState('');
   const [assetIsFractional, setAssetIsFractional] = useState(false);
-  const [resolved, setResolved] = useState<ResolvedAsset | null>(null);
   const [resolveStatus, setResolveStatus] = useState<ResolveStatus>('idle');
   const [resolveError, setResolveError] = useState<string | null>(null);
 
@@ -121,22 +160,20 @@ export default function EnvelopeDialog({
 
     if (initialAsset) {
       setAssetIsin(initialAsset.isin);
+      setAssetName(initialAsset.name);
+      setAssetSymbol(initialAsset.symbol ?? '');
+      setAssetUnitPrice(String(initialAsset.unitPrice));
       setAssetQuantity(String(initialAsset.quantity));
       setAssetIsFractional(initialAsset.isFractional);
-      setResolved({
-        name: initialAsset.name,
-        symbol: initialAsset.symbol ?? '',
-        unitPrice: initialAsset.unitPrice,
-        currency: initialAsset.currency,
-        assetType: initialAsset.assetType ?? null,
-      });
       setResolveStatus('success');
       setShowAsset(true);
     } else {
       setAssetIsin('');
+      setAssetName('');
+      setAssetSymbol('');
+      setAssetUnitPrice('');
       setAssetQuantity('');
       setAssetIsFractional(false);
-      setResolved(null);
       setResolveStatus('idle');
       setResolveError(null);
       setShowAsset(false);
@@ -151,7 +188,9 @@ export default function EnvelopeDialog({
     if (!ISIN_RE.test(cleaned)) {
       // Incomplete ISIN — clear any previous result but don't show an error yet.
       if (resolveStatus !== 'idle') {
-        setResolved(null);
+        setAssetName('');
+        setAssetSymbol('');
+        setAssetUnitPrice('');
         setResolveStatus('idle');
         setResolveError(null);
       }
@@ -169,12 +208,13 @@ export default function EnvelopeDialog({
     resolveIsin(cleaned)
       .then((data) => {
         if (ctrl.signal.aborted) return;
-        setResolved(data);
+        setAssetName(data.name);
+        setAssetSymbol(data.symbol ?? '');
+        setAssetUnitPrice(data.unitPrice > 0 ? String(data.unitPrice) : '');
         setResolveStatus('success');
       })
       .catch((err: Error) => {
         if (ctrl.signal.aborted) return;
-        setResolved(null);
         setResolveStatus('error');
         setResolveError(err.message);
       });
@@ -207,6 +247,27 @@ export default function EnvelopeDialog({
   const handleSave = () => {
     if (!validate()) return;
 
+    const isin = assetIsin.toUpperCase().trim();
+    let assetAction: AssetAction = null;
+
+    if (showAsset && isin) {
+      assetAction = {
+        type: 'upsert',
+        data: {
+          name: assetName.trim() || isin,
+          isin,
+          symbol: assetSymbol.trim() || undefined,
+          unitPrice: parseFloat(assetUnitPrice) || 0,
+          currency: 'EUR',
+          quantity: parseFloat(assetQuantity) || 0,
+          isFractional: assetIsFractional,
+        },
+        id: initialAsset?.id,
+      };
+    } else if (!showAsset && initialAsset) {
+      assetAction = { type: 'delete', id: initialAsset.id };
+    }
+
     onSave(
       {
         name: form.name.trim(),
@@ -215,27 +276,8 @@ export default function EnvelopeDialog({
         allocationPercentage: initialEnvelope?.allocationPercentage ?? 0,
       },
       envelopeId,
+      assetAction,
     );
-
-    const isin = assetIsin.toUpperCase().trim();
-    if (showAsset && isin && onSaveAsset) {
-      onSaveAsset(
-        envelopeId,
-        {
-          name: resolved?.name || isin,
-          isin,
-          symbol: resolved?.symbol || undefined,
-          unitPrice: resolved?.unitPrice ?? 0,
-          currency: resolved?.currency ?? 'EUR',
-          quantity: parseFloat(assetQuantity) || 0,
-          isFractional: assetIsFractional,
-          assetType: resolved?.assetType ?? undefined,
-        },
-        initialAsset?.id,
-      );
-    } else if (!showAsset && initialAsset && onDeleteAsset) {
-      onDeleteAsset(initialAsset.id);
-    }
 
     onClose();
   };
@@ -262,11 +304,6 @@ export default function EnvelopeDialog({
       return `${price.toFixed(2)} ${currency}`;
     }
   };
-
-  const totalValue =
-    resolved && parseFloat(assetQuantity) > 0
-      ? resolved.unitPrice * parseFloat(assetQuantity)
-      : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -334,7 +371,7 @@ export default function EnvelopeDialog({
                   <Button
                     size="small"
                     color="inherit"
-                    onClick={() => { setShowAsset(false); setResolved(null); setResolveStatus('idle'); }}
+                    onClick={() => { setShowAsset(false); setAssetName(''); setAssetSymbol(''); setAssetUnitPrice(''); setResolveStatus('idle'); setResolveError(null); }}
                     sx={{ fontSize: '0.72rem', color: 'text.disabled', px: 0, minWidth: 0, '&:hover': { color: 'error.main', background: 'transparent' } }}
                     disableRipple
                   >
@@ -372,34 +409,47 @@ export default function EnvelopeDialog({
                   }}
                 />
 
-                {/* Resolved asset info */}
-                {resolveStatus === 'success' && resolved && (
-                  <Box
-                    sx={{
-                      px: 1.5,
-                      py: 1.25,
-                      borderRadius: 1.5,
-                      bgcolor: 'rgba(0, 191, 165, 0.06)',
-                      border: '1px solid rgba(0, 191, 165, 0.18)',
-                    }}
-                  >
-                    <Typography variant="body2" fontWeight={600} color="text.primary" lineHeight={1.35}>
-                      {resolved.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.disabled" display="block" mt={0.25}>
-                      {[resolved.symbol, resolved.assetType].filter(Boolean).join(' · ')}
-                      {' · '}
-                      {formatPrice(resolved.unitPrice, resolved.currency)}
-                    </Typography>
-                  </Box>
-                )}
-
-                {/* Resolve error */}
-                {resolveStatus === 'error' && resolveError && (
-                  <Typography variant="caption" color="warning.main" sx={{ mt: -0.5, display: 'block' }}>
-                    {resolveError} — vous pouvez enregistrer sans résolution.
-                  </Typography>
-                )}
+                {/* Asset detail fields — autofilled on resolution, always editable */}
+                <TextField
+                  label="Nom de l'actif"
+                  fullWidth
+                  size="small"
+                  value={assetName}
+                  onChange={(e) => setAssetName(e.target.value)}
+                  placeholder="ex: iShares Core S&P 500"
+                  helperText={
+                    resolveStatus === 'error' && resolveError
+                      ? resolveError.includes('Aucun actif trouvé')
+                        ? "ISIN non reconnu automatiquement. Vous pouvez renseigner l'actif manuellement."
+                        : `${resolveError} — remplissez manuellement si besoin.`
+                      : ' '
+                  }
+                  FormHelperTextProps={{
+                    sx: resolveStatus === 'error' ? { color: 'warning.main' } : undefined,
+                  }}
+                />
+                <Stack direction="row" spacing={1.5}>
+                  <TextField
+                    label="Symbole"
+                    size="small"
+                    value={assetSymbol}
+                    onChange={(e) => setAssetSymbol(e.target.value.toUpperCase())}
+                    placeholder="ex: CSPX.L"
+                    inputProps={{ style: { fontFamily: 'monospace' } }}
+                    sx={{ flex: 1 }}
+                    helperText=" "
+                  />
+                  <TextField
+                    label="Prix unitaire (€)"
+                    type="number"
+                    size="small"
+                    value={assetUnitPrice}
+                    onChange={(e) => setAssetUnitPrice(e.target.value)}
+                    inputProps={{ min: 0, step: 0.01 }}
+                    sx={{ flex: 1 }}
+                    helperText=" "
+                  />
+                </Stack>
 
                 {/* Quantity + fractional */}
                 <Stack direction="row" spacing={1.5} alignItems="center">
@@ -429,14 +479,84 @@ export default function EnvelopeDialog({
                   />
                 </Stack>
 
-                {/* Total value preview */}
-                {totalValue !== null && resolved && (
-                  <Typography variant="caption" color="text.disabled" sx={{ mt: -0.5 }}>
-                    Valeur totale :{' '}
-                    <Box component="span" sx={{ color: 'text.secondary', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                      {formatPrice(totalValue, resolved.currency)}
+                {/* Asset summary — shown once a unit price is available */}
+                {parseFloat(assetUnitPrice) > 0 && (
+                  <Box
+                    sx={{
+                      px: 1.5,
+                      py: 1.25,
+                      borderRadius: 1.5,
+                      bgcolor: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    {/* Name + identifiers */}
+                    {assetName && (
+                      <Typography
+                        variant="body2"
+                        fontWeight={600}
+                        color="text.primary"
+                        lineHeight={1.3}
+                        mb={0.4}
+                        noWrap
+                      >
+                        {assetName}
+                      </Typography>
+                    )}
+                    <Typography
+                      variant="caption"
+                      color="text.disabled"
+                      sx={{ fontFamily: 'monospace', letterSpacing: '0.04em', fontSize: '0.68rem' }}
+                    >
+                      {[assetIsin || null, assetSymbol || null].filter(Boolean).join(' · ')}
+                    </Typography>
+
+                    {/* Price × qty = total */}
+                    <Box
+                      display="flex"
+                      alignItems="flex-end"
+                      gap={1.5}
+                      mt={1.25}
+                      sx={{ fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      <Box>
+                        <Typography variant="caption" color="text.disabled" display="block" lineHeight={1.2} mb={0.2}>
+                          Prix unitaire
+                        </Typography>
+                        <Typography variant="body2" fontWeight={600} color="text.secondary">
+                          {formatPrice(parseFloat(assetUnitPrice), 'EUR')}
+                        </Typography>
+                      </Box>
+
+                      {parseFloat(assetQuantity) > 0 && (
+                        <>
+                          <Typography variant="body2" color="text.disabled" pb={0.1}>×</Typography>
+                          <Box>
+                            <Typography variant="caption" color="text.disabled" display="block" lineHeight={1.2} mb={0.2}>
+                              Quantité
+                            </Typography>
+                            <Typography variant="body2" fontWeight={600} color="text.secondary">
+                              {parseFloat(assetQuantity).toLocaleString('fr-FR')}
+                            </Typography>
+                          </Box>
+
+                          <Typography variant="body2" color="text.disabled" pb={0.1}>=</Typography>
+                          <Box ml="auto" textAlign="right">
+                            <Typography variant="caption" color="text.disabled" display="block" lineHeight={1.2} mb={0.2}>
+                              Valeur totale
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              fontWeight={700}
+                              sx={{ color: 'primary.light', letterSpacing: '-0.01em' }}
+                            >
+                              {formatPrice(parseFloat(assetUnitPrice) * parseFloat(assetQuantity), 'EUR')}
+                            </Typography>
+                          </Box>
+                        </>
+                      )}
                     </Box>
-                  </Typography>
+                  </Box>
                 )}
               </Stack>
             )}

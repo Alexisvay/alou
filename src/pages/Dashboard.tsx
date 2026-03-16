@@ -46,7 +46,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import IncomeDialog from '../components/IncomeDialog';
-import EnvelopeDialog from '../components/EnvelopeDialog';
+import EnvelopeDialog, { type AssetAction } from '../components/EnvelopeDialog';
 import PortfolioChart from '../components/PortfolioChart';
 import PortfolioSummary from '../components/PortfolioSummary';
 import { mockEnvelopes } from '../data/mockEnvelopes';
@@ -150,17 +150,24 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
     setDraggingId(null);
     if (!over || active.id === over.id) return;
 
-    setBaseEnvelopes((prev) => {
-      const oldIndex = prev.findIndex((e) => e.id === active.id);
-      const newIndex = prev.findIndex((e) => e.id === over.id);
-      if (oldIndex === -1 || newIndex === -1) return prev;
-      const reordered = arrayMove(prev, oldIndex, newIndex).map((e, i) => ({ ...e, order: i }));
-      // Persist the new order in the background; UI is already updated optimistically.
-      db.updateEnvelopeOrders(userId, reordered.map(({ id, order }) => ({ id, order: order! }))).catch(
-        (err) => console.error('Failed to persist envelope order:', err),
-      );
-      return reordered;
-    });
+    // Read the current list from the ref so we don't need it as a dependency.
+    const current = baseEnvelopesRef.current;
+    const oldIndex = current.findIndex((e) => e.id === active.id);
+    const newIndex = current.findIndex((e) => e.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(current, oldIndex, newIndex).map((e, i) => ({ ...e, order: i }));
+
+    // Update UI state immediately (optimistic).
+    setBaseEnvelopes(reordered);
+
+    // Persist outside the state updater — side effects must not live inside
+    // pure updater functions, and Supabase returns errors in the result object
+    // rather than throwing, so we check them explicitly here.
+    db.updateEnvelopeOrders(
+      userId,
+      reordered.map(({ id, order }) => ({ id, order: order! })),
+    ).catch((err) => console.error('Failed to persist envelope order:', err));
   }, [userId]);
 
   // ── Remote data state ─────────────────────────────────────────────────────
@@ -180,28 +187,36 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
     async function load() {
       setDataLoading(true);
       try {
-        // fetchAssets is non-fatal: the table may not exist yet if the migration
-        // hasn't been run. A missing table returns [] so envelopes/incomes still load.
-        const [envelopes, incomes, fetchedAssets] = await Promise.all([
+        // Envelopes and incomes load in parallel; assets are fetched afterwards
+        // using the envelope IDs so the filter works regardless of whether the
+        // assets table has a user_id column.
+        const [envelopes, incomes] = await Promise.all([
           db.fetchEnvelopes(userId),
           db.fetchIncomes(userId),
-          db.fetchAssets(userId).catch((err) => {
-            console.warn('fetchAssets failed (table may not exist yet):', err);
-            return [] as import('../types/asset').Asset[];
-          }),
         ]);
         if (cancelled) return;
 
+        let resolvedEnvelopes = envelopes;
         if (envelopes.length === 0) {
           // Seed with fresh UUIDs only for brand-new accounts, then re-fetch.
           await Promise.all(mockEnvelopes.map((e) => db.upsertEnvelope(userId, e)));
           const seeded = await db.fetchEnvelopes(userId);
-          if (!cancelled) setBaseEnvelopes(seeded);
+          if (!cancelled) {
+            setBaseEnvelopes(seeded);
+            resolvedEnvelopes = seeded;
+          }
         } else {
           setBaseEnvelopes(envelopes);
         }
+
+        const envelopeIds = resolvedEnvelopes.map((e) => e.id);
+        const fetchedAssets = await db.fetchAssets(envelopeIds).catch((err) => {
+          console.warn('fetchAssets failed — assets will not be shown:', err);
+          return [] as Asset[];
+        });
+        if (!cancelled) setAssets(fetchedAssets);
+
         setIncomeHistory(incomes);
-        setAssets(fetchedAssets);
       } catch (err) {
         console.error('Failed to load data from Supabase:', err);
       } finally {
@@ -346,76 +361,86 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
   // ── Envelope handlers ─────────────────────────────────────────────────────
   const handleSaveEnvelope = useCallback(
-    (data: Omit<Envelope, 'id'>, id: string) => {
+    (data: Omit<Envelope, 'id'>, id: string, assetAction: AssetAction) => {
       const isNew = !baseEnvelopes.some((e) => e.id === id);
-      // New envelopes go at the end of the current list.
       const order = isNew
         ? baseEnvelopes.length
         : (baseEnvelopes.find((e) => e.id === id)?.order ?? 0);
       const envelope: Envelope = { id, ...data, order };
 
+      // Resolve the asset ID once so optimistic state and DB write use the same value.
+      const resolvedAssetId =
+        assetAction?.type === 'upsert' ? (assetAction.id ?? crypto.randomUUID())
+        : assetAction?.type === 'delete' ? assetAction.id
+        : null;
+
+      // ── Optimistic updates ──────────────────────────────────────────────────
       setBaseEnvelopes((prev) => {
         const exists = prev.some((e) => e.id === id);
         return exists ? prev.map((e) => (e.id === id ? envelope : e)) : [...prev, envelope];
       });
-      setSnackbar({ open: true, message: isNew ? 'Enveloppe créée' : 'Enveloppe modifiée' });
-      db.upsertEnvelope(userId, { ...data, order }, id).catch(async (err) => {
-        console.error('Failed to save envelope:', err);
-        const fresh = await db.fetchEnvelopes(userId).catch(() => null);
-        if (!fresh) return;
 
-        if (!fresh.some((e) => e.id === id)) {
-          // The envelope was never written to the DB (total failure).
-          // Leave the optimistic local state so the user's work is not lost,
-          // but surface a warning so they know the save didn't persist.
-          console.warn('Envelope not found in DB after failed save — keeping optimistic state:', id);
-          setSnackbar({ open: true, message: "Erreur : l'enveloppe n'a pas pu être sauvegardée." });
-          return;
+      if (assetAction?.type === 'upsert' && resolvedAssetId) {
+        const asset: Asset = { id: resolvedAssetId, envelopeId: id, ...assetAction.data };
+        setAssets((prev) => {
+          // Evict any stale asset for this envelope, then add/replace.
+          const without = prev.filter((a) => a.envelopeId !== id || a.id === resolvedAssetId);
+          return without.some((a) => a.id === resolvedAssetId)
+            ? without.map((a) => (a.id === resolvedAssetId ? asset : a))
+            : [...without, asset];
+        });
+      } else if (assetAction?.type === 'delete' && resolvedAssetId) {
+        setAssets((prev) => prev.filter((a) => a.id !== resolvedAssetId));
+      }
+
+      setSnackbar({ open: true, message: isNew ? 'Enveloppe créée' : 'Enveloppe modifiée' });
+
+      // ── Sequential DB writes: envelope first, then asset ───────────────────
+      (async () => {
+        try {
+          await db.upsertEnvelope(userId, { ...data, order }, id);
+        } catch (err) {
+          console.error('Failed to save envelope:', err);
+          const fresh = await db.fetchEnvelopes(userId).catch(() => null);
+          if (!fresh) return;
+          if (!fresh.some((e) => e.id === id)) {
+            console.warn('Envelope not found in DB after failed save — keeping optimistic state:', id);
+            setSnackbar({ open: true, message: "Erreur : l'enveloppe n'a pas pu être sauvegardée." });
+            return; // Envelope not persisted — skip asset write to avoid orphaned rows.
+          }
+          setBaseEnvelopes(fresh);
+          // Envelope is in DB despite the error — fall through to save the asset.
         }
 
-        // Envelope is in the DB; update local state with the authoritative version.
-        setBaseEnvelopes(fresh);
-      });
+        if (!assetAction || !resolvedAssetId) return;
+
+        try {
+          if (assetAction.type === 'upsert') {
+            await db.upsertAsset(userId, { envelopeId: id, ...assetAction.data }, resolvedAssetId);
+          } else {
+            await db.deleteAsset(resolvedAssetId);
+          }
+        } catch (err) {
+          console.error('Failed to save asset:', err);
+          // Re-fetch using the envelope IDs we already know about so the call
+          // matches the updated fetchAssets signature.
+          const knownIds = baseEnvelopesRef.current.map((e) => e.id);
+          const fresh = await db.fetchAssets(knownIds).catch(() => null);
+          if (fresh) setAssets(fresh);
+        }
+      })();
     },
     [userId, baseEnvelopes],
   );
 
   const handleDeleteEnvelope = useCallback((id: string) => {
     setBaseEnvelopes((prev) => prev.filter((e) => e.id !== id));
+    setAssets((prev) => prev.filter((a) => a.envelopeId !== id));
     setSnackbar({ open: true, message: 'Enveloppe supprimée' });
     db.deleteEnvelope(id).catch(async (err) => {
       console.error('Failed to delete envelope:', err);
       const fresh = await db.fetchEnvelopes(userId).catch(() => null);
       if (fresh) setBaseEnvelopes(fresh);
-    });
-  }, [userId]);
-
-  // ── Asset handlers ────────────────────────────────────────────────────────
-  const handleSaveAsset = useCallback(
-    (envelopeId: string, data: Omit<Asset, 'id' | 'envelopeId'>, assetId?: string) => {
-      const id = assetId ?? crypto.randomUUID();
-      const asset: Asset = { id, envelopeId, ...data };
-      setAssets((prev) => {
-        const exists = prev.some((a) => a.id === id);
-        // Replace existing or add; also evict any other asset for the same envelope.
-        const without = prev.filter((a) => a.envelopeId !== envelopeId || a.id === id);
-        return exists ? without.map((a) => (a.id === id ? asset : a)) : [...without, asset];
-      });
-      db.upsertAsset(userId, { envelopeId, ...data }, id).catch(async (err) => {
-        console.error('Failed to save asset:', err);
-        const fresh = await db.fetchAssets(userId).catch(() => null);
-        if (fresh) setAssets(fresh);
-      });
-    },
-    [userId],
-  );
-
-  const handleDeleteAsset = useCallback((assetId: string) => {
-    setAssets((prev) => prev.filter((a) => a.id !== assetId));
-    db.deleteAsset(assetId).catch(async (err) => {
-      console.error('Failed to delete asset:', err);
-      const fresh = await db.fetchAssets(userId).catch(() => null);
-      if (fresh) setAssets(fresh);
     });
   }, [userId]);
 
@@ -965,8 +990,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         open={envelopeDialogOpen}
         onClose={handleEnvelopeDialogClose}
         onSave={handleSaveEnvelope}
-        onSaveAsset={handleSaveAsset}
-        onDeleteAsset={handleDeleteAsset}
         initialEnvelope={editingEnvelope ?? undefined}
         initialAsset={editingEnvelope ? (assets.find((a) => a.envelopeId === editingEnvelope.id) ?? null) : null}
       />

@@ -1,92 +1,84 @@
 /**
- * Vercel Edge Function — ISIN resolution
+ * Vercel Edge Function — ISIN resolution via Financial Modeling Prep
  *
  * GET /api/resolve-isin?isin=IE00B5BMR087
  *
- * 1. Searches Yahoo Finance for the ISIN to get name + ticker symbol.
- * 2. Fetches the current unit price via the chart endpoint.
+ * 1. Calls FMP stable/search-isin to resolve the ISIN to a symbol + name.
+ * 2. Calls FMP stable/quote to get the current unit price.
  *
- * Returns:
- *   { name, symbol, unitPrice, currency, assetType }
- *
- * Errors (JSON { error: string }):
- *   400 — invalid ISIN format
- *   404 — no result found for this ISIN
- *   502 — upstream service unavailable
+ * Success: { success: true,  asset: { isin, name, symbol, unitPrice } }
+ * Error:   { success: false, error: "..." }
  */
 export const config = { runtime: 'edge' };
 
 const HEADERS = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
-  'Cache-Control': 'public, max-age=300', // cache price for 5 min at the edge
+  'Cache-Control': 'public, max-age=300',
 };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: HEADERS });
 }
 
-const YF_HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
-  Accept: 'application/json',
-};
+const FMP_BASE = 'https://financialmodelingprep.com/stable';
 
 export default async function handler(request: Request): Promise<Response> {
+  const apiKey = process.env.FMP_API_KEY;
+  if (!apiKey) {
+    return json({ success: false, error: 'Clé API FMP manquante' }, 400);
+  }
+
   const { searchParams } = new URL(request.url);
   const isin = searchParams.get('isin')?.trim().toUpperCase() ?? '';
 
-  // Loose ISIN format check: 2 country letters + 10 alphanumeric
   if (!/^[A-Z]{2}[A-Z0-9]{10}$/.test(isin)) {
-    return json({ error: 'Format ISIN invalide (ex: IE00B5BMR087)' }, 400);
+    return json({ success: false, error: 'Format ISIN invalide (ex: IE00B5BMR087)' }, 400);
   }
 
   try {
-    // ── Step 1: search by ISIN ──────────────────────────────────────────────
+    // ── Step 1: resolve ISIN → symbol + name ────────────────────────────────
     const searchRes = await fetch(
-      `https://query2.finance.yahoo.com/v1/finance/search?q=${isin}&quotesCount=5&newsCount=0&enableFuzzyQuery=false`,
-      { headers: YF_HEADERS },
+      `${FMP_BASE}/search-isin?isin=${encodeURIComponent(isin)}&apikey=${apiKey}`,
     );
 
     if (!searchRes.ok) {
-      return json({ error: 'Service de données indisponible' }, 502);
+      return json({ success: false, error: 'Service FMP indisponible (search-isin)' }, 502);
     }
 
     const searchData = (await searchRes.json()) as {
-      quotes?: { symbol: string; longname?: string; shortname?: string; quoteType?: string }[];
-    };
+      symbol?: string;
+      name?: string;
+      isin?: string;
+    }[];
 
-    const quote = searchData.quotes?.[0];
-    if (!quote) {
-      return json({ error: `Aucun actif trouvé pour l'ISIN ${isin}` }, 404);
+    const match = searchData?.[0];
+    if (!match?.symbol) {
+      return json({ success: false, error: `Aucun actif trouvé pour l'ISIN ${isin}` }, 404);
     }
 
-    // ── Step 2: fetch current price ─────────────────────────────────────────
-    const priceRes = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(quote.symbol)}?interval=1d&range=1d`,
-      { headers: YF_HEADERS },
+    // ── Step 2: fetch current unit price ────────────────────────────────────
+    const quoteRes = await fetch(
+      `${FMP_BASE}/quote?symbol=${encodeURIComponent(match.symbol)}&apikey=${apiKey}`,
     );
 
     let unitPrice = 0;
-    let currency = 'EUR';
 
-    if (priceRes.ok) {
-      const priceData = (await priceRes.json()) as {
-        chart?: { result?: { meta?: { regularMarketPrice?: number; currency?: string } }[] };
-      };
-      const meta = priceData.chart?.result?.[0]?.meta ?? {};
-      unitPrice = meta.regularMarketPrice ?? 0;
-      currency = meta.currency ?? 'EUR';
+    if (quoteRes.ok) {
+      const quoteData = (await quoteRes.json()) as { price?: number }[];
+      unitPrice = quoteData?.[0]?.price ?? 0;
     }
 
     return json({
-      name: quote.longname || quote.shortname || quote.symbol,
-      symbol: quote.symbol,
-      unitPrice,
-      currency,
-      assetType: quote.quoteType ?? null,
+      success: true,
+      asset: {
+        isin,
+        name: match.name || match.symbol,
+        symbol: match.symbol,
+        unitPrice,
+      },
     });
   } catch {
-    return json({ error: 'Erreur lors de la résolution de l\'ISIN' }, 502);
+    return json({ success: false, error: "Erreur lors de la résolution de l'ISIN" }, 502);
   }
 }

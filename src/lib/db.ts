@@ -85,7 +85,7 @@ export async function updateEnvelopeOrders(
   userId: string,
   orders: { id: string; order: number }[],
 ): Promise<void> {
-  await Promise.all(
+  const results = await Promise.all(
     orders.map(({ id, order }) =>
       supabase
         .from('envelopes')
@@ -94,6 +94,11 @@ export async function updateEnvelopeOrders(
         .eq('user_id', userId),
     ),
   );
+
+  // Supabase returns errors in the result object rather than throwing, so we
+  // must check explicitly and throw so callers can react.
+  const firstError = results.find((r) => r.error)?.error;
+  if (firstError) throw firstError;
 }
 
 export async function deleteEnvelope(id: string): Promise<void> {
@@ -167,27 +172,39 @@ export async function deleteIncome(id: string): Promise<void> {
 
 // ── Assets ─────────────────────────────────────────────────────────────────────
 
-export async function fetchAssets(userId: string): Promise<Asset[]> {
+/**
+ * Fetch all assets that belong to the given envelope IDs.
+ *
+ * Filtering by envelope_id rather than user_id avoids a dependency on the
+ * user_id column, which may not exist in older schema versions. Security is
+ * guaranteed by the fact that the caller already owns these envelopes.
+ */
+export async function fetchAssets(envelopeIds: string[]): Promise<Asset[]> {
+  if (envelopeIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from('assets')
     .select('*')
-    .eq('user_id', userId);
+    .in('envelope_id', envelopeIds);
 
   if (error) throw error;
 
-  return (data ?? []).map((row) => ({
+  return (data ?? []).map((row) => mapAssetRow(row as Record<string, unknown>));
+}
+
+function mapAssetRow(row: Record<string, unknown>): Asset {
+  return {
     id: row.id as string,
     envelopeId: row.envelope_id as string,
     name: row.name as string,
     isin: row.isin as string,
-    // Optional columns added in a later migration — may be absent in older rows.
     symbol: (row.symbol as string | null) ?? undefined,
     unitPrice: row.unit_price as number,
     currency: (row.currency as string | null) ?? 'EUR',
     quantity: row.quantity as number,
     isFractional: row.is_fractional as boolean,
     assetType: (row.asset_type as string | null) ?? undefined,
-  }));
+  };
 }
 
 export async function upsertAsset(
@@ -195,10 +212,11 @@ export async function upsertAsset(
   data: Omit<Asset, 'id'>,
   id?: string,
 ): Promise<Asset> {
-  // Core columns always present.
-  const row: Record<string, unknown> = {
-    id: id ?? crypto.randomUUID(),
-    user_id: userId,
+  const resolvedId = id ?? crypto.randomUUID();
+
+  // Core row — envelope_id is the mandatory foreign key.
+  const coreRow: Record<string, unknown> = {
+    id: resolvedId,
     envelope_id: data.envelopeId,
     name: data.name,
     isin: data.isin,
@@ -207,32 +225,30 @@ export async function upsertAsset(
     is_fractional: data.isFractional,
   };
 
-  // Optional columns: only include if the value is non-empty so the upsert
-  // doesn't fail when the migration adding these columns hasn't been run yet.
-  if (data.symbol) row.symbol = data.symbol;
-  if (data.currency) row.currency = data.currency;
-  if (data.assetType) row.asset_type = data.assetType;
+  // Optional columns: only add when non-empty to avoid failures when the
+  // column doesn't exist yet (migration not yet run).
+  if (data.symbol)   coreRow.symbol    = data.symbol;
+  if (data.currency) coreRow.currency  = data.currency;
+  if (data.assetType) coreRow.asset_type = data.assetType;
 
+  // Primary attempt: include user_id (present in the intended schema).
   const { data: saved, error } = await supabase
     .from('assets')
-    .upsert(row)
+    .upsert({ ...coreRow, user_id: userId })
     .select()
     .single();
 
-  if (error) throw error;
+  if (!error) return mapAssetRow(saved as Record<string, unknown>);
 
-  return {
-    id: saved.id as string,
-    envelopeId: saved.envelope_id as string,
-    name: saved.name as string,
-    isin: saved.isin as string,
-    symbol: (saved.symbol as string | null) ?? undefined,
-    unitPrice: saved.unit_price as number,
-    currency: (saved.currency as string | null) ?? 'EUR',
-    quantity: saved.quantity as number,
-    isFractional: saved.is_fractional as boolean,
-    assetType: (saved.asset_type as string | null) ?? undefined,
-  };
+  // Fallback: user_id column may not exist yet — retry without it.
+  const { data: saved2, error: error2 } = await supabase
+    .from('assets')
+    .upsert(coreRow)
+    .select()
+    .single();
+
+  if (error2) throw error2;
+  return mapAssetRow(saved2 as Record<string, unknown>);
 }
 
 export async function deleteAsset(id: string): Promise<void> {

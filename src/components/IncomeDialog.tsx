@@ -310,8 +310,12 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
               {sortedResults.map(({ envelope, allocatedAmount }, i, arr) => {
                 const pct = income > 0 ? (allocatedAmount / income) * 100 : 0;
                 const asset = assets.find((a) => a.envelopeId === envelope.id);
-                const unitHint = (!isManual && asset && asset.unitPrice > 0)
-                  ? computeUnits(allocatedAmount, asset.unitPrice, asset.isFractional)
+                // In manual mode use the user's typed value; in auto mode use the computed amount.
+                const effectiveAmount = isManual
+                  ? Math.max(0, parseFloat(manualAmounts[envelope.id] ?? '0') || 0)
+                  : allocatedAmount;
+                const unitHint = (asset && asset.unitPrice > 0 && effectiveAmount > 0)
+                  ? computeUnits(effectiveAmount, asset.unitPrice, asset.isFractional)
                   : null;
 
                 return (
@@ -388,21 +392,30 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
                       )}
                     </Box>
 
-                    {/* Unit hint — shown in auto mode when a linked asset exists */}
-                    {unitHint !== null && (
-                      <Typography
-                        variant="caption"
-                        color="text.disabled"
-                        display="block"
-                        mt={0.5}
-                        sx={{ fontSize: '0.67rem', fontVariantNumeric: 'tabular-nums' }}
-                      >
-                        {unitHint.units === 0 && !asset!.isFractional
-                          ? `Prix unitaire ${formatCurrency(asset!.unitPrice)} — allocation insuffisante pour 1 part`
-                          : `≈ ${asset!.isFractional ? unitHint.units.toFixed(3).replace(/\.?0+$/, '') : unitHint.units} part${unitHint.units !== 1 ? 's' : ''}${unitHint.remainingCash > 0 ? ` · reste ${formatCurrency(unitHint.remainingCash)}` : ''}`
-                        }
-                      </Typography>
-                    )}
+                    {/* Unit hint — shown whenever a linked asset has a price and an allocation */}
+                    {unitHint !== null && (() => {
+                      const { units, remainingCash } = unitHint;
+                      const unitsLabel = asset!.isFractional
+                        ? units.toFixed(3).replace(/\.?0+$/, '')
+                        : String(units);
+                      const line = units === 0
+                        ? `Prix unitaire ${formatCurrency(asset!.unitPrice)} — montant insuffisant pour 1 part`
+                        : `≈ ${unitsLabel} part${units !== 1 ? 's' : ''}${remainingCash > 0.005 ? ` · reste ${formatCurrency(remainingCash)}` : ''}`;
+                      return (
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          mt={0.5}
+                          sx={{
+                            fontSize: '0.67rem',
+                            fontVariantNumeric: 'tabular-nums',
+                            color: units === 0 ? 'warning.main' : 'text.disabled',
+                          }}
+                        >
+                          {line}
+                        </Typography>
+                      );
+                    })()}
                   </Box>
                 );
               })}

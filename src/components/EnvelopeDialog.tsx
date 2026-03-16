@@ -418,11 +418,13 @@ export default function EnvelopeDialog({
                   onChange={(e) => setAssetName(e.target.value)}
                   placeholder="ex: iShares Core S&P 500"
                   helperText={
-                    resolveStatus === 'error' && resolveError
-                      ? resolveError.includes('Aucun actif trouvé')
-                        ? "ISIN non reconnu automatiquement. Vous pouvez renseigner l'actif manuellement."
-                        : `${resolveError} — remplissez manuellement si besoin.`
-                      : ' '
+                    resolveStatus === 'error' && resolveError ? (
+                      <>
+                        ISIN non reconnu automatiquement.
+                        <br />
+                        Vous pouvez renseigner l'actif manuellement ou continuer sans résolution.
+                      </>
+                    ) : ' '
                   }
                   FormHelperTextProps={{
                     sx: resolveStatus === 'error' ? { color: 'warning.main' } : undefined,

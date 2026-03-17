@@ -1,13 +1,13 @@
 /**
- * Vercel Edge Function — ISIN resolution via Financial Modeling Prep
+ * Vercel Edge Function — ISIN resolution via EODHD
  *
- * GET /api/resolve-isin?isin=IE00B5BMR087
+ * GET /api/resolve-isin?isin=US0378331005
  *
- * 1. Calls FMP stable/search-isin to resolve the ISIN to a symbol + name.
- * 2. Calls FMP stable/quote to get the current unit price.
+ * 1. Tries EODHD Search API (ISIN as query).
+ * 2. Fallback: EODHD ID Mapping API (filter by ISIN).
  *
- * Success: { success: true,  asset: { isin, name, symbol, unitPrice } }
- * Error:   { success: false, error: "..." }
+ * Success: { success: true, asset: { isin, name, symbol, exchange, unitPrice } }
+ * Error:   { success: false, error: "Aucun actif trouvé pour cet ISIN" }
  */
 export const config = { runtime: 'edge' };
 
@@ -21,13 +21,12 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: HEADERS });
 }
 
-const FMP_STABLE = 'https://financialmodelingprep.com/stable';
-const FMP_V3 = 'https://financialmodelingprep.com/api/v3';
+const EODHD_BASE = 'https://eodhd.com/api';
 
 export default async function handler(request: Request): Promise<Response> {
-  const apiKey = process.env.FMP_API_KEY;
+  const apiKey = process.env.EODHD_API_KEY;
   if (!apiKey) {
-    return json({ success: false, error: 'Clé API FMP manquante' }, 400);
+    return json({ success: false, error: 'Clé API EODHD manquante' }, 400);
   }
 
   const { searchParams } = new URL(request.url);
@@ -38,145 +37,75 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   try {
-    // ── Step 1: resolve ISIN → symbol + name ────────────────────────────────
-    // Try stable/search-isin first; fallback to v3/search if empty or error.
-    let symbol = '';
-    let name = '';
+    // ── Step 1: EODHD Search API (ISIN as query) ─────────────────────────────
+    const searchUrl = `${EODHD_BASE}/search/${encodeURIComponent(isin)}?api_token=${apiKey}&fmt=json&limit=10`;
+    const searchRes = await fetch(searchUrl);
 
-    const stableUrl = `${FMP_STABLE}/search-isin?isin=${encodeURIComponent(isin)}&apikey=${apiKey}`;
-    const stableRes = await fetch(stableUrl);
-    const stableRaw = await stableRes.text();
+    if (searchRes.ok) {
+      const searchData = (await searchRes.json()) as unknown;
+      const list = Array.isArray(searchData) ? searchData : [];
 
-    // DEBUG: log FMP response (remove after fixing)
-    // eslint-disable-next-line no-console
-    console.log('[resolve-isin] search-isin', {
-      url: stableUrl.replace(apiKey, '***'),
-      status: stableRes.status,
-      raw: stableRaw.slice(0, 800),
-    });
+      // Find first result matching the ISIN (exact or first if no ISIN in response)
+      const match = list.find(
+        (item: Record<string, unknown>) =>
+          (item.ISIN as string) === isin || (item.isin as string) === isin,
+      ) as Record<string, unknown> | undefined;
+      const first = (match ?? list[0]) as Record<string, unknown> | undefined;
 
-    const extractMatch = (parsed: unknown): { symbol: string; name: string } | null => {
-      const rawList = Array.isArray(parsed)
-        ? parsed
-        : (parsed as Record<string, unknown>)?.data ?? (parsed as Record<string, unknown>)?.results ?? [];
-      if (!Array.isArray(rawList) || rawList.length === 0) return null;
-      const first = rawList[0] as Record<string, unknown>;
-      const s =
-        (first.symbol as string) ?? (first.ticker as string) ?? (first.stockSymbol as string) ?? '';
-      const n =
-        (first.name as string) ??
-        (first.companyName as string) ??
-        (first.shortName as string) ??
-        s;
-      return s ? { symbol: s, name: n } : null;
-    };
+      if (first) {
+        const code = (first.Code as string) ?? (first.code as string) ?? '';
+        const name = (first.Name as string) ?? (first.name as string) ?? code;
+        const exchange = (first.Exchange as string) ?? (first.exchange as string) ?? '';
+        const unitPrice =
+          (first.previousClose as number) ?? (first.previous_close as number) ?? 0;
 
-    if (stableRes.ok) {
-      try {
-        const parsed = JSON.parse(stableRaw) as unknown;
-        const match = extractMatch(parsed);
-        if (match) {
-          symbol = match.symbol;
-          name = match.name;
-        }
-      } catch {
-        // ignore parse error
-      }
-    }
-
-    // Fallback: v3 search by query (ISIN as search term)
-    if (!symbol) {
-      const v3Url = `${FMP_V3}/search?query=${encodeURIComponent(isin)}&limit=5&apikey=${apiKey}`;
-      const v3Res = await fetch(v3Url);
-      const v3Raw = await v3Res.text();
-
-      // eslint-disable-next-line no-console
-      console.log('[resolve-isin] v3/search fallback', {
-        url: v3Url.replace(apiKey, '***'),
-        status: v3Res.status,
-        raw: v3Raw.slice(0, 800),
-      });
-
-      if (v3Res.ok) {
-        try {
-          const parsed = JSON.parse(v3Raw) as unknown;
-          const match = extractMatch(parsed);
-          if (match) {
-            symbol = match.symbol;
-            name = match.name;
-          }
-        } catch {
-          // ignore
+        if (code) {
+          return json({
+            success: true,
+            asset: {
+              isin,
+              name: name || code,
+              symbol: code,
+              exchange: exchange || undefined,
+              unitPrice,
+            },
+          });
         }
       }
     }
 
-    if (!symbol) {
-      return json({ success: false, error: "Aucun actif trouvé pour cet ISIN" }, 404);
-    }
+    // ── Step 2: Fallback — EODHD ID Mapping API ─────────────────────────────
+    const mappingUrl = `${EODHD_BASE}/id-mapping?filter[isin]=${encodeURIComponent(isin)}&api_token=${apiKey}&fmt=json`;
+    const mappingRes = await fetch(mappingUrl);
 
-    // ── Step 2: fetch current unit price ────────────────────────────────────
-    const quoteUrl = `${FMP_STABLE}/quote?symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`;
-    const quoteRes = await fetch(quoteUrl);
-    const quoteRaw = await quoteRes.text();
+    if (mappingRes.ok) {
+      const mappingData = (await mappingRes.json()) as {
+        data?: { symbol?: string; isin?: string }[];
+      };
+      const dataList = mappingData?.data ?? [];
+      const first = dataList[0] as Record<string, unknown> | undefined;
 
-    // DEBUG: log quote response (remove after fixing)
-    // eslint-disable-next-line no-console
-    console.log('[resolve-isin] quote', {
-      url: quoteUrl.replace(apiKey, '***'),
-      status: quoteRes.status,
-      raw: quoteRaw.slice(0, 500),
-    });
+      if (first?.symbol) {
+        const fullSymbol = first.symbol as string;
+        // EODHD returns "AAPL.US" — use as symbol, extract exchange
+        const dotIdx = fullSymbol.indexOf('.');
+        const symbol = dotIdx > 0 ? fullSymbol.slice(0, dotIdx) : fullSymbol;
+        const exchange = dotIdx > 0 ? fullSymbol.slice(dotIdx + 1) : '';
 
-    let unitPrice = 0;
-    if (quoteRes.ok) {
-      try {
-        const quoteParsed = JSON.parse(quoteRaw) as unknown;
-        const quoteList = Array.isArray(quoteParsed)
-          ? quoteParsed
-          : (quoteParsed as Record<string, unknown>)?.data ?? (quoteParsed as Record<string, unknown>)?.results ?? [];
-        const quoteFirst = Array.isArray(quoteList) ? (quoteList[0] as Record<string, unknown>) : null;
-        unitPrice =
-          (quoteFirst?.price as number) ??
-          (quoteFirst?.regularMarketPrice as number) ??
-          (quoteFirst?.last as number) ??
-          (quoteFirst?.close as number) ??
-          0;
-      } catch {
-        // ignore parse error; unitPrice stays 0
+        return json({
+          success: true,
+          asset: {
+            isin,
+            name: symbol,
+            symbol,
+            exchange: exchange || undefined,
+            unitPrice: 0,
+          },
+        });
       }
     }
 
-    // Fallback: v3 quote if stable returned no price
-    if (unitPrice === 0) {
-      const v3QuoteUrl = `${FMP_V3}/quote/${encodeURIComponent(symbol)}?apikey=${apiKey}`;
-      const v3QuoteRes = await fetch(v3QuoteUrl);
-      if (v3QuoteRes.ok) {
-        try {
-          const v3QuoteData = (await v3QuoteRes.json()) as Record<string, unknown>[];
-          const v3First = v3QuoteData?.[0];
-          if (v3First) {
-            unitPrice =
-              (v3First.price as number) ??
-              (v3First.regularMarketPrice as number) ??
-              (v3First.close as number) ??
-              0;
-          }
-        } catch {
-          // ignore
-        }
-      }
-    }
-
-    return json({
-      success: true,
-      asset: {
-        isin,
-        name: name || symbol,
-        symbol,
-        unitPrice,
-      },
-    });
+    return json({ success: false, error: 'Aucun actif trouvé pour cet ISIN' }, 404);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[resolve-isin] error', err);

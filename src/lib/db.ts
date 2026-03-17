@@ -197,13 +197,9 @@ function mapAssetRow(row: Record<string, unknown>): Asset {
     id: row.id as string,
     envelopeId: row.envelope_id as string,
     name: row.name as string,
-    isin: row.isin as string,
-    symbol: (row.symbol as string | null) ?? undefined,
     unitPrice: row.unit_price as number,
-    currency: (row.currency as string | null) ?? 'EUR',
     quantity: row.quantity as number,
     isFractional: row.is_fractional as boolean,
-    assetType: (row.asset_type as string | null) ?? undefined,
   };
 }
 
@@ -214,22 +210,14 @@ export async function upsertAsset(
 ): Promise<Asset> {
   const resolvedId = id ?? crypto.randomUUID();
 
-  // Core row — envelope_id is the mandatory foreign key.
   const coreRow: Record<string, unknown> = {
     id: resolvedId,
     envelope_id: data.envelopeId,
     name: data.name,
-    isin: data.isin,
     unit_price: data.unitPrice,
     quantity: data.quantity,
     is_fractional: data.isFractional,
   };
-
-  // Optional columns: only add when non-empty to avoid failures when the
-  // column doesn't exist yet (migration not yet run).
-  if (data.symbol)   coreRow.symbol    = data.symbol;
-  if (data.currency) coreRow.currency  = data.currency;
-  if (data.assetType) coreRow.asset_type = data.assetType;
 
   // Primary attempt: include user_id (present in the intended schema).
   const { data: saved, error } = await supabase

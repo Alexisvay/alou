@@ -318,7 +318,10 @@ export default function EnvelopeDialog({
             open={assetDrawerOpen}
             onClose={() => setAssetDrawerOpen(false)}
             assetRows={assetRows}
-            onUpdate={setAssetRows}
+            onApply={(rows) => {
+              setAssetRows(rows);
+              setAssetDrawerOpen(false);
+            }}
           />
 
           {/* ── Target amount (always) ──────────────────────────────────────── */}

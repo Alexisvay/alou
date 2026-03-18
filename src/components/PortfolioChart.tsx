@@ -111,7 +111,7 @@ export default function PortfolioChart({ envelopes }: PortfolioChartProps) {
                 width: '100%',
               }}
             >
-              <Typography variant="h5" color="primary.main" display="block" lineHeight={1.1}>
+              <Typography variant="h5" color="primary.main" display="block" lineHeight={1.1} sx={{ letterSpacing: '-0.02em' }}>
                 {formatCurrency(total)}
               </Typography>
               <Typography

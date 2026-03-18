@@ -315,8 +315,8 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
   // ── Income handlers ───────────────────────────────────────────────────────
   const handleApplyAllocation = useCallback(
-    (results: AllocationResult[], isManual: boolean) => {
-      const amount = results.reduce((sum, r) => sum + r.allocatedAmount, 0);
+    (results: AllocationResult[], isManual: boolean, totalAmount: number) => {
+      const amount = results.length > 0 ? results.reduce((sum, r) => sum + r.allocatedAmount, 0) : totalAmount;
       const entry: IncomeEntry = editingIncome
         ? { ...editingIncome, amount, allocations: results, isManualAllocation: isManual }
         : { id: crypto.randomUUID(), amount, date: new Date(), allocations: results, isManualAllocation: isManual };
@@ -475,14 +475,14 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           ...(isScrolled
             ? {
                 background: [
-                  'radial-gradient(circle at 20% 20%, rgba(198, 161, 91, 0.08), transparent 28%)',
-                  'radial-gradient(circle at 80% 30%, rgba(230, 201, 122, 0.06), transparent 24%)',
-                  'linear-gradient(180deg, #0d0f14 0%, #10141c 100%)',
+                  'radial-gradient(circle at 20% 20%, rgba(198, 161, 91, 0.05), transparent 26%)',
+                  'radial-gradient(circle at 80% 25%, rgba(230, 201, 122, 0.04), transparent 22%)',
+                  'linear-gradient(180deg, rgba(12, 12, 14, 0.96) 0%, rgba(16, 16, 18, 0.96) 100%)',
                 ].join(', '),
                 backdropFilter: 'blur(14px)',
                 WebkitBackdropFilter: 'blur(14px)',
                 borderBottom: '1px solid rgba(198, 161, 91, 0.08)',
-                boxShadow: '0 6px 24px rgba(0, 0, 0, 0.2)',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.28)',
               }
             : {
                 bgcolor: 'transparent',
@@ -506,7 +506,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
                   background: 'transparent',
                 }}
               />
-              <Typography variant="h4" fontWeight={700} color="text.primary">
+              <Typography variant="h4" fontWeight={600} color="text.primary">
                 Alou
               </Typography>
             </Box>
@@ -654,8 +654,8 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       <PortfolioSummary envelopes={envelopes} />
 
       {/* Section enveloppes — primary section */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mt={6} mb={2}>
-        <Typography variant="h6" fontWeight={700} display="flex" alignItems="center" gap={1}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mt={8} mb={2}>
+        <Typography variant="h6" fontWeight={600} display="flex" alignItems="center" gap={1}>
           <AccountBalanceIcon fontSize="small" sx={{ color: 'text.secondary' }} />
           Enveloppes
         </Typography>
@@ -808,11 +808,11 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       )}
 
       {/* Secondary sections — separated from primary content */}
-      <Divider sx={{ mt: 7, mb: 6, borderColor: 'rgba(255,255,255,0.05)' }} />
+      <Divider sx={{ mt: 8, mb: 7, borderColor: 'rgba(255,255,255,0.05)' }} />
 
       {/* Graphique de répartition */}
       <Box>
-        <Typography variant="h6" display="flex" alignItems="center" gap={1} mb={2}>
+        <Typography variant="h6" fontWeight={600} display="flex" alignItems="center" gap={1} mb={2}>
           <DonutLargeIcon fontSize="small" sx={{ color: 'text.secondary' }} />
           Répartition du portefeuille
         </Typography>
@@ -820,11 +820,25 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       </Box>
 
       {/* Historique des revenus */}
-      <Box mt={6}>
-        <Typography variant="h6" display="flex" alignItems="center" gap={1} mb={2}>
-          <HistoryIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-          Historique des revenus
-        </Typography>
+      <Box mt={8}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h6" fontWeight={600} display="flex" alignItems="center" gap={1}>
+            <HistoryIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+            Historique des revenus
+          </Typography>
+          {incomeHistory.length > 0 && (
+            <Button
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => {
+                setEditingIncome(null);
+                setIncomeDialogOpen(true);
+              }}
+            >
+              Déclarer un revenu
+            </Button>
+          )}
+        </Box>
       {incomeHistory.length === 0 ? (
           <Paper variant="outlined" sx={{ py: { xs: 6, sm: 8 }, px: { xs: 3, sm: 6 } }}>
             <Stack alignItems="center" spacing={2.5} textAlign="center">

@@ -84,7 +84,7 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
                 <DragIndicatorRoundedIcon sx={{ fontSize: 15 }} />
               </Box>
             )}
-            <Typography variant="h6" color="text.primary" noWrap>
+            <Typography variant="h6" color="text.primary" noWrap sx={{ fontSize: '1.0625rem', fontWeight: 600 }}>
               {name}
             </Typography>
           </Box>
@@ -111,7 +111,7 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
 
         {/* Main amount */}
         <Box mb={3.5} flex={1}>
-          <Typography variant="h4" color="text.primary" fontWeight={700}>
+          <Typography variant="h4" color="text.primary" fontWeight={600}>
             {displayAmount(currentAmount)}
           </Typography>
           <Typography
@@ -119,7 +119,7 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
             color="text.disabled"
             mt={1}
             display="block"
-            sx={{ fontSize: '0.72rem' }}
+            sx={{ fontSize: '0.8125rem' }}
           >
             <Box component="span" sx={{ opacity: 0.6 }}>sur</Box>
             {' '}
@@ -133,7 +133,7 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
               color="text.disabled"
               mt={0.5}
               display="block"
-              sx={{ fontSize: '0.68rem', opacity: 0.7 }}
+              sx={{ fontSize: '0.75rem', opacity: 0.7 }}
             >
               <Box component="span" sx={{ opacity: 0.7 }}>reste</Box>
               {' '}

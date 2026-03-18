@@ -48,7 +48,8 @@ interface IncomeDialogProps {
   onClose: () => void;
   envelopes: ComputedEnvelope[];
   assets?: Asset[];
-  onApply?: (results: AllocationResult[], isManual: boolean) => void;
+  /** Called with (results, isManual, totalAmount). When all targets met, results=[], totalAmount=income. */
+  onApply?: (results: AllocationResult[], isManual: boolean, totalAmount: number) => void;
   initialAmount?: number;
 }
 
@@ -179,27 +180,45 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
         envelope,
         allocatedAmount: parseFloat(manualAmounts[envelope.id] || '0'),
       }));
-      onApply?.(manualResults, true);
+      onApply?.(manualResults, true, income);
+    } else if (allTargetsMet) {
+      onApply?.([], false, income);
     } else {
       if (!isValid || !results || results.length === 0) return;
-      onApply?.(results, false);
+      onApply?.(results, false, income);
     }
     onClose();
   };
 
   const canApply = isManual
     ? isManualValid
-    : isValid && !!results && results.length > 0;
+    : isValid && (allTargetsMet || (!!results && results.length > 0));
 
   const totalColor = isManualValid ? '#00BFA5' : '#FF6B6B';
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>
-        {isEditing ? 'Modifier le revenu' : 'Déclarer un revenu'}
+      {/* Header: title + amount */}
+      <DialogTitle sx={{ pb: isValid ? 0.5 : 1 }}>
+        <Box display="flex" flexDirection="column" gap={0.5}>
+          <Typography variant="h6" fontWeight={600}>
+            {isEditing ? 'Modifier le revenu' : 'Déclarer un revenu'}
+          </Typography>
+          {isValid && (
+            <Typography
+              variant="h4"
+              fontWeight={600}
+              color="primary.main"
+              sx={{ letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}
+            >
+              {formatCurrency(income)}
+            </Typography>
+          )}
+        </Box>
       </DialogTitle>
 
-      <DialogContent>
+      <DialogContent sx={{ pt: 0 }}>
+        {/* Amount input */}
         <TextField
           label="Montant"
           type="number"
@@ -208,7 +227,6 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
           value={incomeInput}
           onChange={(e) => {
             setIncomeInput(e.target.value);
-            // Reset manual mode when income changes so amounts stay coherent
             if (isManual) exitManualMode();
           }}
           onKeyDown={(e) => { if (e.key === 'Enter' && canApply) handleApply(); }}
@@ -216,90 +234,77 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
           InputProps={{
             startAdornment: <EuroIcon sx={{ mr: 1, color: 'text.secondary', fontSize: '1.1rem' }} />,
           }}
-          helperText={
-            isManual
-              ? 'Mode personnalisé — saisissez les montants manuellement.'
-              : 'Répartition recommandée selon l\'avancement de chaque enveloppe.'
-          }
+          helperText={isManual ? 'Mode personnalisé' : undefined}
           sx={{
-            mt: 0.5,
             '& .MuiInputBase-input': {
-              fontSize: '1.25rem',
+              fontSize: '1.5rem',
               fontWeight: 600,
-              letterSpacing: '-0.25px',
+              letterSpacing: '-0.02em',
             },
           }}
         />
 
-        {/* All targets met */}
+        {/* All targets met — success callout */}
         {allTargetsMet && (
           <Box mt={3}>
-            <Divider sx={{ mb: 2.5 }} />
+            <Divider sx={{ mb: 2 }} />
             <Box
               sx={{
                 py: 2,
                 px: 2,
                 borderRadius: 2,
-                bgcolor: 'rgba(255, 255, 255, 0.04)',
+                bgcolor: 'rgba(34, 197, 94, 0.08)',
                 border: '1px solid rgba(34, 197, 94, 0.25)',
-                textAlign: 'center',
               }}
             >
               <Typography variant="body2" fontWeight={600} color="success.main" mb={0.5}>
                 Tous vos objectifs sont atteints
               </Typography>
-              <Typography variant="caption" color="text.disabled" display="block" sx={{ lineHeight: 1.5 }}>
-                Ce revenu ne sera pas réparti automatiquement.
-                Vous pouvez quand même enregistrer une entrée si nécessaire.
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.5, fontSize: '0.8125rem' }}>
+                Ce revenu ne sera pas réparti. Vous pouvez enregistrer l'entrée pour l'historique.
               </Typography>
             </Box>
           </Box>
         )}
 
-        {/* Résultats */}
+        {/* Allocation suggestion block */}
         {sortedResults !== null && sortedResults.length > 0 && (
           <Box mt={3}>
-            <Divider sx={{ mb: 2.5 }} />
+            <Divider sx={{ mb: 2 }} />
 
-            {/* Section label */}
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              display="block"
-              mb={isManual ? 2 : 0.75}
-              sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.65rem' }}
-            >
-              {isManual ? 'Répartition personnalisée' : 'Répartition recommandée'} · {formatCurrency(income)}
-            </Typography>
-
-            {/* Auto mode: explanation + top-priority hint */}
-            {!isManual && (
-              <Box mb={1.75}>
-                <Typography
-                  variant="caption"
-                  color="text.disabled"
-                  display="block"
-                  sx={{ fontSize: '0.7rem', lineHeight: 1.5 }}
-                >
-                  Cette suggestion privilégie les enveloppes les plus en retard par rapport à leurs objectifs.
-                </Typography>
-                {sortedResults.length > 1 && (
-                  <Typography
-                    variant="caption"
-                    display="block"
-                    mt={0.5}
-                    sx={{ fontSize: '0.7rem', color: 'text.disabled' }}
-                  >
-                    Priorité actuelle :{' '}
-                    <Box component="span" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                      {sortedResults[0].envelope.name}
-                    </Box>
+            {/* Section header */}
+            <Box mb={2}>
+              <Typography variant="body2" fontWeight={600} color="text.primary" mb={0.5}>
+                {isManual ? 'Répartition personnalisée' : 'Répartition recommandée'}
+              </Typography>
+              {!isManual && (
+                <>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.8125rem' }}>
+                    Basée sur l'avancement de vos objectifs.
                   </Typography>
-                )}
-              </Box>
-            )}
+                  {sortedResults.length > 1 && (
+                    <Box
+                      component="span"
+                      sx={{
+                        display: 'inline-flex',
+                        mt: 1,
+                        px: 1.25,
+                        py: 0.375,
+                        borderRadius: '20px',
+                        bgcolor: 'rgba(198, 161, 91, 0.12)',
+                        border: '1px solid rgba(198, 161, 91, 0.25)',
+                      }}
+                    >
+                      <Typography variant="caption" fontWeight={600} color="primary.main" sx={{ fontSize: '0.75rem' }}>
+                        Priorité actuelle : {sortedResults[0].envelope.name}
+                      </Typography>
+                    </Box>
+                  )}
+                </>
+              )}
+            </Box>
 
-            {/* Allocation rows */}
+            {/* Allocation list */}
             <Box
               sx={{
                 borderRadius: 1.5,
@@ -310,7 +315,6 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
               {sortedResults.map(({ envelope, allocatedAmount }, i, arr) => {
                 const pct = income > 0 ? (allocatedAmount / income) * 100 : 0;
                 const asset = assets.find((a) => a.envelopeId === envelope.id);
-                // In manual mode use the user's typed value; in auto mode use the computed amount.
                 const effectiveAmount = isManual
                   ? Math.max(0, parseFloat(manualAmounts[envelope.id] ?? '0') || 0)
                   : allocatedAmount;
@@ -323,32 +327,28 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
                     key={envelope.id}
                     sx={{
                       px: 2,
-                      py: isManual ? 1 : 1.25,
+                      py: 1.5,
                       bgcolor: i % 2 === 0 ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.02)',
                       borderBottom: i < arr.length - 1 ? '1px solid rgba(255, 255, 255, 0.06)' : 'none',
                     }}
                   >
-                    {/* Main row: name / percentage / amount */}
                     <Box
                       display="grid"
                       gridTemplateColumns={isManual ? '1fr auto' : '1fr auto auto'}
                       alignItems="center"
                       gap={isManual ? 1.5 : 2}
                     >
-                      <Typography variant="body2" fontWeight={500} color="text.primary" noWrap>
+                      <Typography variant="body2" fontWeight={600} color="text.primary" noWrap>
                         {envelope.name}
                       </Typography>
 
                       {!isManual && (
-                        <Typography variant="caption" color="text.disabled" textAlign="right" sx={{ minWidth: 36 }}>
+                        <Typography variant="caption" color="text.disabled" textAlign="right" sx={{ minWidth: 36, fontSize: '0.75rem', opacity: 0.8 }}>
                           {pct.toFixed(0)}%
                         </Typography>
                       )}
 
                       {isManual ? (
-                        // Wrapper Box carries the Emotion styles; the inner <input> is a
-                        // plain native element so React's controlled-input reconciliation
-                        // always updates the DOM value when manualAmounts changes.
                         <Box
                           sx={{
                             '& input[type=number]': {
@@ -358,13 +358,13 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
                               border: '1px solid rgba(255,255,255,0.15)',
                               borderRadius: '6px',
                               color: '#E2E8F0',
-                              fontSize: '0.8125rem',
+                              fontSize: '0.875rem',
                               fontWeight: 600,
                               fontFamily: 'inherit',
                               fontVariantNumeric: 'tabular-nums',
                               textAlign: 'right',
                               outline: 'none',
-                              padding: '5px 8px',
+                              padding: '6px 8px',
                               boxSizing: 'border-box',
                               transition: 'border-color 0.15s, background 0.15s',
                               MozAppearance: 'textfield',
@@ -386,13 +386,12 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
                           />
                         </Box>
                       ) : (
-                        <Typography variant="body2" fontWeight={700} color="text.primary" textAlign="right" sx={{ minWidth: 72, fontVariantNumeric: 'tabular-nums' }}>
+                        <Typography variant="body2" fontWeight={700} color="text.primary" textAlign="right" sx={{ minWidth: 80, fontVariantNumeric: 'tabular-nums', fontSize: '1rem' }}>
                           <AnimatedAmount amount={allocatedAmount} />
                         </Typography>
                       )}
                     </Box>
 
-                    {/* Unit hint — shown whenever a linked asset has a price and an allocation */}
                     {unitHint !== null && (() => {
                       const { units, remainingCash } = unitHint;
                       const unitsLabel = asset!.isFractional
@@ -405,11 +404,12 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
                         <Typography
                           variant="caption"
                           display="block"
-                          mt={0.5}
+                          mt={0.75}
                           sx={{
-                            fontSize: '0.67rem',
+                            fontSize: '0.6875rem',
                             fontVariantNumeric: 'tabular-nums',
                             color: units === 0 ? 'warning.main' : 'text.disabled',
+                            opacity: 0.85,
                           }}
                         >
                           {line}
@@ -421,89 +421,71 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
               })}
             </Box>
 
-            {/* Manual mode: total summary + reset button */}
+            {/* Manual mode: total + reset */}
             {isManual && (
               <Box mt={2}>
-                {/* Total summary — right aligned */}
                 <Box display="flex" justifyContent="flex-end" alignItems="baseline" gap={1}>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: 'text.disabled', fontSize: '0.7rem' }}
-                  >
+                  <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.75rem' }}>
                     Total réparti
                   </Typography>
                   <Typography
                     variant="caption"
-                    sx={{
-                      fontVariantNumeric: 'tabular-nums',
-                      color: totalColor,
-                      fontWeight: 600,
-                      transition: 'color 0.2s',
-                    }}
+                    sx={{ fontVariantNumeric: 'tabular-nums', color: totalColor, fontWeight: 600, transition: 'color 0.2s' }}
                   >
                     {formatCurrency(manualTotal)} / {formatCurrency(income)}
                   </Typography>
                 </Box>
-                {/* Reset to automatic */}
-                <Box mt={1.5}>
-                  <Button
-                    size="small"
-                    color="inherit"
-                    startIcon={<AutorenewRoundedIcon sx={{ fontSize: '0.85rem !important' }} />}
-                    onClick={exitManualMode}
-                    sx={{
-                      fontSize: '0.75rem',
-                      color: 'text.secondary',
-                      px: 0,
-                      '&:hover': { color: 'text.primary', background: 'transparent' },
-                    }}
-                    disableRipple
-                  >
-                    Revenir à la répartition automatique
-                  </Button>
-                </Box>
+                <Button
+                  size="small"
+                  color="inherit"
+                  startIcon={<AutorenewRoundedIcon sx={{ fontSize: '0.85rem !important' }} />}
+                  onClick={exitManualMode}
+                  sx={{ mt: 1.5, fontSize: '0.75rem', color: 'text.secondary', px: 0, '&:hover': { color: 'text.primary', background: 'transparent' } }}
+                  disableRipple
+                >
+                  Revenir à la répartition automatique
+                </Button>
               </Box>
             )}
 
-            {/* Reached-envelope exclusion notice (auto mode only) */}
+            {/* Completed-envelope callout */}
             {!isManual && reachedEnvelopes.length > 0 && (
-              <Box mt={1.75}>
+              <Box
+                mt={2}
+                sx={{
+                  py: 1.5,
+                  px: 2,
+                  borderRadius: 1.5,
+                  bgcolor: 'rgba(34, 197, 94, 0.08)',
+                  border: '1px solid rgba(34, 197, 94, 0.2)',
+                }}
+              >
+                <Typography variant="caption" color="success.main" fontWeight={600} display="block" sx={{ fontSize: '0.75rem', mb: 0.5 }}>
+                  Objectifs atteints
+                </Typography>
                 {reachedEnvelopes.map((e) => (
-                  <Typography
-                    key={e.id}
-                    variant="caption"
-                    display="block"
-                    sx={{
-                      fontSize: '0.67rem',
-                      color: 'text.disabled',
-                      lineHeight: 1.55,
-                      '& + &': { mt: 0.4 },
-                    }}
-                  >
-                    <Box component="span" sx={{ color: '#00BFA5', fontWeight: 600 }}>
-                      {e.name}
-                    </Box>
-                    {' '}a atteint son objectif et n'est pas incluse dans cette répartition.
+                  <Typography key={e.id} variant="caption" display="block" sx={{ fontSize: '0.75rem', color: 'text.secondary', lineHeight: 1.5 }}>
+                    {e.name} — non incluse dans cette répartition
                   </Typography>
                 ))}
               </Box>
             )}
 
-            {/* Auto mode: customize link */}
+            {/* Footer secondary action */}
             {!isManual && (
-              <Box mt={1.5} display="flex" justifyContent="flex-end">
+              <Box mt={2} display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
                 <Button
                   size="small"
+                  variant="outlined"
                   color="inherit"
                   startIcon={<TuneRoundedIcon sx={{ fontSize: '0.85rem !important' }} />}
                   onClick={enterManualMode}
                   sx={{
-                    fontSize: '0.75rem',
+                    fontSize: '0.8125rem',
                     color: 'text.secondary',
-                    px: 0,
-                    '&:hover': { color: 'text.primary', background: 'transparent' },
+                    borderColor: 'rgba(255, 255, 255, 0.2)',
+                    '&:hover': { borderColor: 'rgba(255, 255, 255, 0.35)', bgcolor: 'rgba(255, 255, 255, 0.04)' },
                   }}
-                  disableRipple
                 >
                   Personnaliser la répartition
                 </Button>
@@ -513,8 +495,9 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
         )}
       </DialogContent>
 
-      <DialogActions>
-        <Button onClick={onClose} color="inherit">
+      {/* Footer actions */}
+      <DialogActions sx={{ px: 3, py: 2, gap: 1, flexWrap: 'wrap' }}>
+        <Button onClick={onClose} color="inherit" sx={{ order: 1 }}>
           Fermer
         </Button>
         {onApply && (
@@ -522,6 +505,7 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
             variant="contained"
             onClick={handleApply}
             disabled={!canApply}
+            sx={{ order: 2 }}
           >
             {isEditing ? 'Enregistrer' : 'Appliquer'}
           </Button>

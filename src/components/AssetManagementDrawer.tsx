@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   Drawer,
   Box,
@@ -10,13 +11,14 @@ import {
   IconButton,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import CheckIcon from '@mui/icons-material/Check';
 import { type AssetRow } from './EnvelopeDialog';
 
 interface AssetManagementDrawerProps {
   open: boolean;
   onClose: () => void;
   assetRows: AssetRow[];
-  onUpdate: (rows: AssetRow[]) => void;
+  onApply: (rows: AssetRow[]) => void;
 }
 
 const formatPrice = (price: number) =>
@@ -35,23 +37,35 @@ export default function AssetManagementDrawer({
   open,
   onClose,
   assetRows,
-  onUpdate,
+  onApply,
 }: AssetManagementDrawerProps) {
+  const [localRows, setLocalRows] = useState<AssetRow[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      setLocalRows(assetRows.length > 0 ? assetRows.map((r) => ({ ...r })) : []);
+    }
+  }, [open, assetRows]);
+
   const updateRow = (index: number, updates: Partial<AssetRow>) => {
-    onUpdate(
-      assetRows.map((row, i) => (i === index ? { ...row, ...updates } : row)),
+    setLocalRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, ...updates } : row)),
     );
   };
 
   const addAsset = () => {
-    onUpdate([...assetRows, emptyAssetRow()]);
+    setLocalRows((prev) => [...prev, emptyAssetRow()]);
   };
 
   const removeAsset = (index: number) => {
-    onUpdate(assetRows.filter((_, i) => i !== index));
+    setLocalRows((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const totalValue = assetRows.reduce((sum, row) => {
+  const handleApply = () => {
+    onApply(localRows);
+  };
+
+  const totalValue = localRows.reduce((sum, row) => {
     const up = parseFloat(row.unitPrice);
     const qty = parseFloat(row.quantity);
     return sum + (up > 0 && qty > 0 ? up * qty : 0);
@@ -63,6 +77,9 @@ export default function AssetManagementDrawer({
       open={open}
       onClose={onClose}
       slotProps={{
+        root: {
+          sx: { zIndex: 1400 },
+        },
         paper: {
           sx: {
             width: { xs: '100%', sm: 380 },
@@ -98,7 +115,7 @@ export default function AssetManagementDrawer({
         </Box>
 
         <Stack spacing={1.5} sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-          {assetRows.map((row, idx) => {
+          {localRows.map((row, idx) => {
             const rowValue =
               parseFloat(row.unitPrice) > 0 && parseFloat(row.quantity) > 0
                 ? parseFloat(row.unitPrice) * parseFloat(row.quantity)
@@ -187,6 +204,22 @@ export default function AssetManagementDrawer({
           }}
         >
           + Ajouter un actif
+        </Button>
+
+        <Button
+          variant="contained"
+          size="medium"
+          startIcon={<CheckIcon sx={{ fontSize: '1rem !important' }} />}
+          onClick={handleApply}
+          fullWidth
+          sx={{
+            mt: 2,
+            py: 1.25,
+            fontSize: '0.875rem',
+            fontWeight: 600,
+          }}
+        >
+          Appliquer les actifs
         </Button>
       </Box>
     </Drawer>

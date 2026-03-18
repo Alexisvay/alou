@@ -63,7 +63,7 @@ function Block({ label, value, valueColor = 'text.primary', flex = 1 }: BlockPro
       <Typography
         variant="caption"
         color="text.secondary"
-        sx={{ textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.65rem' }}
+        sx={{ textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.75rem', fontWeight: 500 }}
         display="block"
         mb={1.5}
       >

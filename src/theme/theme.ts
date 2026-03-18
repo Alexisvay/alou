@@ -53,45 +53,51 @@ const theme = createTheme({
     divider: 'rgba(255, 255, 255, 0.07)',
   },
   typography: {
-    fontFamily: '"DM Sans", "Helvetica Neue", Arial, sans-serif',
-    // Number XL — dashboard totals
+    fontFamily: '"Satoshi", "Inter", "Helvetica Neue", Arial, sans-serif',
+    // Number XL — KPI totals, main amounts
     h3: {
-      fontSize: '2.25rem',
-      fontWeight: 700,
-      letterSpacing: '-0.75px',
+      fontSize: '2rem',
+      fontWeight: 600,
+      letterSpacing: '-0.02em',
       lineHeight: 1,
       fontVariantNumeric: 'tabular-nums',
     },
     // Number L — envelope card amounts
     h4: {
-      fontSize: '1.625rem',
+      fontSize: '2rem',
       fontWeight: 600,
-      letterSpacing: '-0.5px',
+      letterSpacing: '-0.02em',
       lineHeight: 1.1,
       fontVariantNumeric: 'tabular-nums',
     },
     // Number M — chart center, allocation amounts
     h5: {
-      fontSize: '1.125rem',
+      fontSize: '1.25rem',
       fontWeight: 600,
-      letterSpacing: '-0.25px',
+      letterSpacing: '-0.02em',
       lineHeight: 1.2,
       fontVariantNumeric: 'tabular-nums',
     },
-    // Section titles
+    // Section titles, envelope names
     h6: {
-      fontSize: '0.9375rem',
+      fontSize: '1.25rem',
       fontWeight: 600,
-      letterSpacing: '-0.1px',
+      letterSpacing: '-0.01em',
     },
     body1: {
+      fontSize: '1rem',
+      fontWeight: 400,
       lineHeight: 1.6,
     },
     body2: {
-      lineHeight: 1.5,
+      fontSize: '0.9375rem',
+      fontWeight: 400,
+      lineHeight: 1.55,
     },
     caption: {
-      lineHeight: 1.4,
+      fontSize: '0.8125rem',
+      fontWeight: 400,
+      lineHeight: 1.45,
     },
   },
   shape: {
@@ -216,9 +222,9 @@ const theme = createTheme({
     MuiDialogTitle: {
       styleOverrides: {
         root: {
-          fontSize: '1.0625rem',
-          fontWeight: 700,
-          letterSpacing: '-0.2px',
+          fontSize: '1.125rem',
+          fontWeight: 600,
+          letterSpacing: '-0.01em',
           padding: '24px 24px 8px',
         },
       },
@@ -259,7 +265,8 @@ const theme = createTheme({
     MuiInputLabel: {
       styleOverrides: {
         root: {
-          fontSize: '0.875rem',
+          fontSize: '0.9375rem',
+          fontWeight: 500,
           '&.Mui-focused': {
             color: 'rgba(230, 201, 122, 0.95)',
           },
@@ -343,7 +350,7 @@ const theme = createTheme({
     MuiTooltip: {
       styleOverrides: {
         tooltip: {
-          fontSize: '0.75rem',
+          fontSize: '0.8125rem',
           fontWeight: 500,
           backgroundColor: SURFACE_SECONDARY,
           border: `1px solid ${SURFACE_BORDER}`,

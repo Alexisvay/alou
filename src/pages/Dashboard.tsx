@@ -236,10 +236,19 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
     [baseEnvelopes],
   );
 
-  const envelopes = useMemo(
-    () => recalculateEnvelopes(sortedBaseEnvelopes, incomeHistory),
-    [sortedBaseEnvelopes, incomeHistory],
-  );
+  const envelopes = useMemo(() => {
+    const computed = recalculateEnvelopes(sortedBaseEnvelopes, incomeHistory);
+    return computed.map((env) => {
+      const envAssets = assets.filter((a) => a.envelopeId === env.id);
+      const assetValue =
+        envAssets.length > 0
+          ? envAssets.reduce((sum, a) => sum + (a.unitPrice > 0 ? a.unitPrice * a.quantity : 0), 0)
+          : null;
+      const effectiveCurrentAmount =
+        assetValue != null ? assetValue : env.currentAmount;
+      return { ...env, currentAmount: effectiveCurrentAmount };
+    });
+  }, [sortedBaseEnvelopes, incomeHistory, assets]);
 
   // Single contextual recommendation evaluated in priority order.
   const recommendation = useMemo((): { title: string; body: string } | null => {
@@ -361,18 +370,12 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
   // ── Envelope handlers ─────────────────────────────────────────────────────
   const handleSaveEnvelope = useCallback(
-    (data: Omit<Envelope, 'id'>, id: string, assetAction: AssetAction) => {
+    (data: Omit<Envelope, 'id'>, id: string, assetActions: AssetAction[]) => {
       const isNew = !baseEnvelopes.some((e) => e.id === id);
       const order = isNew
         ? baseEnvelopes.length
         : (baseEnvelopes.find((e) => e.id === id)?.order ?? 0);
       const envelope: Envelope = { id, ...data, order };
-
-      // Resolve the asset ID once so optimistic state and DB write use the same value.
-      const resolvedAssetId =
-        assetAction?.type === 'upsert' ? (assetAction.id ?? crypto.randomUUID())
-        : assetAction?.type === 'delete' ? assetAction.id
-        : null;
 
       // ── Optimistic updates ──────────────────────────────────────────────────
       setBaseEnvelopes((prev) => {
@@ -380,22 +383,24 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         return exists ? prev.map((e) => (e.id === id ? envelope : e)) : [...prev, envelope];
       });
 
-      if (assetAction?.type === 'upsert' && resolvedAssetId) {
-        const asset: Asset = { id: resolvedAssetId, envelopeId: id, ...assetAction.data };
-        setAssets((prev) => {
-          // Evict any stale asset for this envelope, then add/replace.
-          const without = prev.filter((a) => a.envelopeId !== id || a.id === resolvedAssetId);
-          return without.some((a) => a.id === resolvedAssetId)
-            ? without.map((a) => (a.id === resolvedAssetId ? asset : a))
-            : [...without, asset];
-        });
-      } else if (assetAction?.type === 'delete' && resolvedAssetId) {
-        setAssets((prev) => prev.filter((a) => a.id !== resolvedAssetId));
-      }
+      setAssets((prev) => {
+        let next = prev;
+        for (const action of assetActions) {
+          if (action.type === 'upsert') {
+            const resolvedId = action.id ?? crypto.randomUUID();
+            const asset: Asset = { id: resolvedId, envelopeId: id, ...action.data };
+            const idx = next.findIndex((a) => a.id === resolvedId);
+            next = idx >= 0 ? next.map((a, i) => (i === idx ? asset : a)) : [...next, asset];
+          } else {
+            next = next.filter((a) => a.id !== action.id);
+          }
+        }
+        return next;
+      });
 
       setSnackbar({ open: true, message: isNew ? 'Enveloppe créée' : 'Enveloppe modifiée' });
 
-      // ── Sequential DB writes: envelope first, then asset ───────────────────
+      // ── Sequential DB writes: envelope first, then assets ────────────────────
       (async () => {
         try {
           await db.upsertEnvelope(userId, { ...data, order }, id);
@@ -406,27 +411,26 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           if (!fresh.some((e) => e.id === id)) {
             console.warn('Envelope not found in DB after failed save — keeping optimistic state:', id);
             setSnackbar({ open: true, message: "Erreur : l'enveloppe n'a pas pu être sauvegardée." });
-            return; // Envelope not persisted — skip asset write to avoid orphaned rows.
+            return;
           }
           setBaseEnvelopes(fresh);
-          // Envelope is in DB despite the error — fall through to save the asset.
         }
 
-        if (!assetAction || !resolvedAssetId) return;
-
-        try {
-          if (assetAction.type === 'upsert') {
-            await db.upsertAsset(userId, { envelopeId: id, ...assetAction.data }, resolvedAssetId);
-          } else {
-            await db.deleteAsset(resolvedAssetId);
+        for (const action of assetActions) {
+          try {
+            if (action.type === 'upsert') {
+              const resolvedId = action.id ?? crypto.randomUUID();
+              await db.upsertAsset(userId, { envelopeId: id, ...action.data }, resolvedId);
+            } else {
+              await db.deleteAsset(action.id);
+            }
+          } catch (err) {
+            console.error('Failed to save asset:', err);
+            const knownIds = baseEnvelopesRef.current.map((e) => e.id);
+            const fresh = await db.fetchAssets(knownIds).catch(() => null);
+            if (fresh) setAssets(fresh);
+            break;
           }
-        } catch (err) {
-          console.error('Failed to save asset:', err);
-          // Re-fetch using the envelope IDs we already know about so the call
-          // matches the updated fetchAssets signature.
-          const knownIds = baseEnvelopesRef.current.map((e) => e.id);
-          const fresh = await db.fetchAssets(knownIds).catch(() => null);
-          if (fresh) setAssets(fresh);
         }
       })();
     },
@@ -991,7 +995,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         onClose={handleEnvelopeDialogClose}
         onSave={handleSaveEnvelope}
         initialEnvelope={editingEnvelope ?? undefined}
-        initialAsset={editingEnvelope ? (assets.find((a) => a.envelopeId === editingEnvelope.id) ?? null) : null}
+        initialAssets={editingEnvelope ? assets.filter((a) => a.envelopeId === editingEnvelope.id) : []}
       />
 
       {/* Snackbar */}

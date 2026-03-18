@@ -210,8 +210,10 @@ export async function upsertAsset(
 ): Promise<Asset> {
   const resolvedId = id ?? crypto.randomUUID();
 
-  const coreRow: Record<string, unknown> = {
+  // RLS requires user_id to match auth.uid() — always include it.
+  const row: Record<string, unknown> = {
     id: resolvedId,
+    user_id: userId,
     envelope_id: data.envelopeId,
     name: data.name,
     unit_price: data.unitPrice,
@@ -219,24 +221,14 @@ export async function upsertAsset(
     is_fractional: data.isFractional,
   };
 
-  // Primary attempt: include user_id (present in the intended schema).
   const { data: saved, error } = await supabase
     .from('assets')
-    .upsert({ ...coreRow, user_id: userId })
+    .upsert(row)
     .select()
     .single();
 
-  if (!error) return mapAssetRow(saved as Record<string, unknown>);
-
-  // Fallback: user_id column may not exist yet — retry without it.
-  const { data: saved2, error: error2 } = await supabase
-    .from('assets')
-    .upsert(coreRow)
-    .select()
-    .single();
-
-  if (error2) throw error2;
-  return mapAssetRow(saved2 as Record<string, unknown>);
+  if (error) throw error;
+  return mapAssetRow(saved as Record<string, unknown>);
 }
 
 export async function deleteAsset(id: string): Promise<void> {

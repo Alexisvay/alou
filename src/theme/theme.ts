@@ -1,27 +1,54 @@
 import { createTheme } from '@mui/material/styles';
 
-const SURFACE = '#1A2132';
-const BORDER   = 'rgba(255, 255, 255, 0.08)';
-const INSET    = 'inset 0px 1px 0px rgba(255, 255, 255, 0.06)';
+// ── Shared surface system (neutral dark gray, no blue tint) ───────────────────
+export const SURFACE_MAIN = '#0E0E10';
+export const SURFACE_PRIMARY = '#17171A';
+export const SURFACE_SECONDARY = '#1E1E22';
+export const SURFACE_BORDER = 'rgba(255, 255, 255, 0.08)';
+export const SURFACE_BORDER_HOVER = 'rgba(255, 255, 255, 0.12)';
+export const SURFACE_SHADOW = '0px 2px 16px rgba(0, 0, 0, 0.4)';
+export const SURFACE_SHADOW_HOVER = '0px 6px 24px rgba(0, 0, 0, 0.45)';
+export const SURFACE_INSET = 'inset 0px 1px 0px rgba(255, 255, 255, 0.06)';
+
+export const GOLD_GRADIENT = 'linear-gradient(135deg, #C6A15B, #E6C97A, #B8924A)';
+export const GOLD_GRADIENT_HOVER = 'linear-gradient(135deg, #D4B86A, #E8D090, #C6A15B)';
+
+const GOLD_MAIN = '#C6A15B';
+const GOLD_LIGHT = '#E6C97A';
+const GOLD_DARK = '#B8924A';
 
 const theme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#4D6BFF',
-      light: '#8A9EFF',
-      dark: '#2C47D9',
+      main: GOLD_MAIN,
+      light: GOLD_LIGHT,
+      dark: GOLD_DARK,
     },
     secondary: {
       main: '#00BFA5',
     },
+    info: {
+      main: GOLD_MAIN,
+      light: GOLD_LIGHT,
+      dark: GOLD_DARK,
+    },
+    success: {
+      main: '#22C55E',
+      light: '#4ADE80',
+    },
+    warning: {
+      main: '#F59E0B',
+      light: '#FBBF24',
+    },
     background: {
-      default: '#0D1117',
-      paper: '#1C2230',
+      default: SURFACE_MAIN,
+      paper: SURFACE_PRIMARY,
     },
     text: {
-      primary: '#E8EEFF',
-      secondary: '#8892B0',
+      primary: '#FFFFFF',
+      secondary: '#94A3B8',
+      disabled: '#64748B',
     },
     divider: 'rgba(255, 255, 255, 0.07)',
   },
@@ -71,20 +98,32 @@ const theme = createTheme({
     borderRadius: 16,
   },
   components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          '& *:focus-visible': {
+            outline: `2px solid ${GOLD_MAIN}`,
+            outlineOffset: 2,
+          },
+        },
+      },
+    },
+    MuiButtonBase: {
+      defaultProps: {
+        disableRipple: true,
+      },
+    },
     MuiCard: {
       styleOverrides: {
         root: {
           backgroundImage: 'none',
-          backgroundColor: SURFACE,
-          border: `1px solid ${BORDER}`,
-          boxShadow: [`0px 2px 16px rgba(0, 0, 0, 0.4)`, INSET].join(', '),
+          backgroundColor: SURFACE_PRIMARY,
+          border: `1px solid ${SURFACE_BORDER}`,
+          boxShadow: [SURFACE_SHADOW, SURFACE_INSET].join(', '),
           transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
           '&:hover': {
-            borderColor: 'rgba(255, 255, 255, 0.13)',
-            boxShadow: [
-              '0px 6px 24px rgba(0, 0, 0, 0.45)',
-              'inset 0px 1px 0px rgba(255, 255, 255, 0.09)',
-            ].join(', '),
+            borderColor: SURFACE_BORDER_HOVER,
+            boxShadow: [SURFACE_SHADOW_HOVER, SURFACE_INSET].join(', '),
           },
         },
       },
@@ -117,11 +156,21 @@ const theme = createTheme({
         },
         contained: {
           boxShadow: '0px 1px 8px rgba(0, 0, 0, 0.3)',
+          '&:hover': { boxShadow: '0px 3px 14px rgba(0, 0, 0, 0.35)' },
+          '&:active': { boxShadow: '0px 1px 4px rgba(0, 0, 0, 0.3)' },
+        },
+        containedPrimary: {
+          background: GOLD_GRADIENT,
+          color: '#0D1117',
+          '&:hover': { background: GOLD_GRADIENT_HOVER },
+        },
+        text: {
+          '&:hover': { backgroundColor: 'rgba(198, 161, 91, 0.08)' },
+        },
+        outlined: {
           '&:hover': {
-            boxShadow: '0px 3px 14px rgba(0, 0, 0, 0.35)',
-          },
-          '&:active': {
-            boxShadow: '0px 1px 4px rgba(0, 0, 0, 0.3)',
+            borderColor: 'rgba(198, 161, 91, 0.6)',
+            backgroundColor: 'rgba(198, 161, 91, 0.08)',
           },
         },
       },
@@ -129,7 +178,12 @@ const theme = createTheme({
     MuiFab: {
       styleOverrides: {
         root: {
-          boxShadow: '0px 4px 20px rgba(77, 107, 255, 0.35)',
+          boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.4)',
+        },
+        primary: {
+          background: GOLD_GRADIENT,
+          color: '#0D1117',
+          '&:hover': { background: GOLD_GRADIENT_HOVER },
         },
       },
     },
@@ -139,12 +193,9 @@ const theme = createTheme({
           backgroundImage: 'none',
         },
         outlined: {
-          backgroundColor: SURFACE,
-          borderColor: BORDER,
-          boxShadow: [
-            '0px 2px 16px rgba(0, 0, 0, 0.35)',
-            'inset 0px 1px 0px rgba(255, 255, 255, 0.05)',
-          ].join(', '),
+          backgroundColor: SURFACE_PRIMARY,
+          border: `1px solid ${SURFACE_BORDER}`,
+          boxShadow: [SURFACE_SHADOW, SURFACE_INSET].join(', '),
         },
       },
     },
@@ -152,12 +203,12 @@ const theme = createTheme({
       styleOverrides: {
         paper: {
           backgroundImage: 'none',
-          backgroundColor: SURFACE,
+          backgroundColor: SURFACE_SECONDARY,
           borderRadius: 20,
-          border: `1px solid ${BORDER}`,
+          border: `1px solid ${SURFACE_BORDER}`,
           boxShadow: [
             '0px 24px 64px rgba(0, 0, 0, 0.6)',
-            'inset 0px 1px 0px rgba(255, 255, 255, 0.06)',
+            SURFACE_INSET,
           ].join(', '),
         },
       },
@@ -199,7 +250,7 @@ const theme = createTheme({
             borderColor: 'rgba(255, 255, 255, 0.22)',
           },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-            borderColor: 'rgba(77, 107, 255, 0.7)',
+            borderColor: 'rgba(198, 161, 91, 0.7)',
             borderWidth: '1px',
           },
         },
@@ -210,7 +261,7 @@ const theme = createTheme({
         root: {
           fontSize: '0.875rem',
           '&.Mui-focused': {
-            color: 'rgba(138, 158, 255, 0.9)',
+            color: 'rgba(230, 201, 122, 0.95)',
           },
         },
       },
@@ -230,18 +281,77 @@ const theme = createTheme({
         },
       },
     },
+    MuiSwitch: {
+      styleOverrides: {
+        root: {
+          '& .MuiSwitch-switchBase.Mui-checked': {
+            color: GOLD_MAIN,
+            '& + .MuiSwitch-track': {
+              backgroundColor: 'rgba(198, 161, 91, 0.5)',
+            },
+          },
+          '& .MuiSwitch-switchBase.Mui-checked:hover': {
+            '& + .MuiSwitch-track': {
+              backgroundColor: 'rgba(198, 161, 91, 0.6)',
+            },
+          },
+        },
+      },
+    },
+    MuiTabs: {
+      styleOverrides: {
+        indicator: {
+          backgroundColor: GOLD_MAIN,
+        },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          '&.Mui-selected': {
+            color: GOLD_LIGHT,
+          },
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          '&:hover': {
+            backgroundColor: 'rgba(198, 161, 91, 0.08)',
+          },
+          '&.Mui-focusVisible': {
+            backgroundColor: 'rgba(198, 161, 91, 0.12)',
+          },
+        },
+      },
+    },
+    MuiCircularProgress: {
+      styleOverrides: {
+        root: {
+          color: GOLD_MAIN,
+        },
+      },
+    },
+    MuiLinearProgress: {
+      styleOverrides: {
+        bar: {
+          backgroundColor: GOLD_MAIN,
+        },
+      },
+    },
     MuiTooltip: {
       styleOverrides: {
         tooltip: {
           fontSize: '0.75rem',
           fontWeight: 500,
-          backgroundColor: 'rgba(15, 20, 35, 0.95)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          backgroundColor: SURFACE_SECONDARY,
+          border: `1px solid ${SURFACE_BORDER}`,
           borderRadius: 8,
           backdropFilter: 'blur(8px)',
         },
         arrow: {
-          color: 'rgba(15, 20, 35, 0.95)',
+          color: SURFACE_SECONDARY,
         },
       },
     },

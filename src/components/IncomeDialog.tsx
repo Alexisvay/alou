@@ -240,12 +240,12 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
                 py: 2,
                 px: 2,
                 borderRadius: 2,
-                bgcolor: 'rgba(0, 191, 165, 0.06)',
-                border: '1px solid rgba(0, 191, 165, 0.18)',
+                bgcolor: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(34, 197, 94, 0.25)',
                 textAlign: 'center',
               }}
             >
-              <Typography variant="body2" fontWeight={600} sx={{ color: '#00BFA5' }} mb={0.5}>
+              <Typography variant="body2" fontWeight={600} color="success.main" mb={0.5}>
                 Tous vos objectifs sont atteints
               </Typography>
               <Typography variant="caption" color="text.disabled" display="block" sx={{ lineHeight: 1.5 }}>
@@ -291,7 +291,7 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
                     sx={{ fontSize: '0.7rem', color: 'text.disabled' }}
                   >
                     Priorité actuelle :{' '}
-                    <Box component="span" sx={{ color: 'primary.light', fontWeight: 600 }}>
+                    <Box component="span" sx={{ color: 'text.secondary', fontWeight: 600 }}>
                       {sortedResults[0].envelope.name}
                     </Box>
                   </Typography>
@@ -303,7 +303,7 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
             <Box
               sx={{
                 borderRadius: 1.5,
-                border: '1px solid rgba(77, 107, 255, 0.18)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
                 overflow: 'hidden',
               }}
             >
@@ -324,7 +324,7 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
                     sx={{
                       px: 2,
                       py: isManual ? 1 : 1.25,
-                      bgcolor: i % 2 === 0 ? 'rgba(77, 107, 255, 0.07)' : 'rgba(77, 107, 255, 0.04)',
+                      bgcolor: i % 2 === 0 ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.02)',
                       borderBottom: i < arr.length - 1 ? '1px solid rgba(255, 255, 255, 0.06)' : 'none',
                     }}
                   >
@@ -355,7 +355,7 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
                               display: 'block',
                               width: '84px',
                               background: 'rgba(255,255,255,0.05)',
-                              border: '1px solid rgba(77,107,255,0.3)',
+                              border: '1px solid rgba(255,255,255,0.15)',
                               borderRadius: '6px',
                               color: '#E2E8F0',
                               fontSize: '0.8125rem',
@@ -370,8 +370,8 @@ export default function IncomeDialog({ open, onClose, envelopes, assets = [], on
                               MozAppearance: 'textfield',
                             },
                             '& input[type=number]:focus': {
-                              borderColor: 'rgba(77,107,255,0.7)',
-                              background: 'rgba(77,107,255,0.08)',
+                              borderColor: 'rgba(198, 161, 91, 0.6)',
+                              background: 'rgba(198, 161, 91, 0.06)',
                             },
                             '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
                             '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 },

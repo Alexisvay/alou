@@ -9,7 +9,6 @@ import {
   Tab,
   Tabs,
 } from '@mui/material';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 
 interface AuthPageProps {
   onSignIn: (email: string, password: string) => Promise<string | null>;
@@ -63,20 +62,18 @@ export default function AuthPage({ onSignIn, onSignUp }: AuthPageProps) {
         {/* Brand */}
         <Box textAlign="center" mb={4}>
           <Box
-            display="inline-flex"
-            alignItems="center"
-            justifyContent="center"
+            component="img"
+            src="/logo-alou.png"
+            alt="Alou"
             sx={{
-              width: 56,
-              height: 56,
-              borderRadius: '50%',
-              bgcolor: 'rgba(77, 107, 255, 0.15)',
-              border: '1px solid rgba(77, 107, 255, 0.35)',
+              width: 48,
+              height: 48,
+              objectFit: 'contain',
+              display: 'block',
+              mx: 'auto',
               mb: 2,
             }}
-          >
-            <LockOutlinedIcon sx={{ color: 'primary.light', fontSize: 24 }} />
-          </Box>
+          />
           <Typography variant="h5" fontWeight={700} color="text.primary">
             Alou
           </Typography>

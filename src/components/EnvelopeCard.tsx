@@ -7,6 +7,7 @@ import {
   IconButton,
   Tooltip,
 } from '@mui/material';
+import { SURFACE_BORDER_HOVER } from '../theme/theme';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
@@ -25,9 +26,9 @@ interface EnvelopeCardProps {
 type StatusConfig = { label: string; color: string };
 
 function getStatus(progress: number | null, reached: boolean): StatusConfig {
-  if (reached)                          return { label: 'Atteinte',         color: '#00BFA5' };
-  if (progress != null && progress >= 80) return { label: 'Presque atteinte', color: '#FFB547' };
-  return                                       { label: 'En cours',           color: '#8892B0' };
+  if (reached) return { label: 'Atteinte', color: '#22C55E' };
+  if (progress != null && progress >= 80) return { label: 'Presque atteinte', color: '#F59E0B' };
+  return { label: 'En cours', color: '#94A3B8' };
 }
 
 export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelete, dragHandleProps }: EnvelopeCardProps) {
@@ -43,16 +44,15 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
     <Card
       sx={{
         height: '100%',
-        // Subtle green tint signals completion without being distracting.
-        bgcolor: reached ? 'rgba(0, 191, 165, 0.04)' : undefined,
-        borderColor: reached ? 'rgba(0, 191, 165, 0.18)' : undefined,
-        transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
+        bgcolor: reached ? 'rgba(34, 197, 94, 0.06)' : undefined,
+        borderColor: reached ? 'rgba(34, 197, 94, 0.25)' : undefined,
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease',
         '&:hover': {
           transform: 'translateY(-2px)',
-          borderColor: reached ? 'rgba(0, 191, 165, 0.35)' : 'rgba(255, 255, 255, 0.14)',
+          borderColor: reached ? 'rgba(34, 197, 94, 0.4)' : SURFACE_BORDER_HOVER,
           boxShadow: [
-            '0px 10px 36px rgba(0, 0, 0, 0.5)',
-            'inset 0px 1px 0px rgba(255, 255, 255, 0.1)',
+            '0px 6px 24px rgba(0, 0, 0, 0.45)',
+            'inset 0px 1px 0px rgba(255, 255, 255, 0.06)',
           ].join(', '),
         },
       }}
@@ -95,13 +95,13 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
                   px: 1,
                   py: 0.25,
                   borderRadius: '20px',
-                  bgcolor: 'rgba(77, 107, 255, 0.12)',
-                  border: '1px solid rgba(77, 107, 255, 0.28)',
+                  bgcolor: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                   flexShrink: 0,
                   ml: 1,
                 }}
               >
-                <Typography variant="caption" fontWeight={600} color="primary.light" lineHeight={1.6} noWrap>
+                <Typography variant="caption" fontWeight={600} color="text.secondary" lineHeight={1.6} noWrap>
                   {portfolioShare.toFixed(1)}%
                 </Typography>
               </Box>
@@ -163,7 +163,7 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
             <Typography
               variant="caption"
               fontWeight={600}
-              sx={{ opacity: 0.85, color: reached ? '#00BFA5' : 'primary.light' }}
+              sx={{ opacity: 0.9, color: reached ? 'success.main' : 'text.secondary' }}
             >
               {progressValue != null ? `${progressValue.toFixed(1)} %` : '—'}
             </Typography>
@@ -178,8 +178,8 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
               '& .MuiLinearProgress-bar': {
                 borderRadius: 4,
                 background: reached
-                  ? 'linear-gradient(90deg, #00BFA5 0%, #00E5CC 100%)'
-                  : 'linear-gradient(90deg, #4D6BFF 0%, #8A9EFF 100%)',
+                  ? 'linear-gradient(90deg, #22C55E 0%, #4ADE80 100%)'
+                  : 'linear-gradient(135deg, #C6A15B, #E6C97A, #B8924A)',
               },
             }}
           />
@@ -202,7 +202,7 @@ export default function EnvelopeCard({ envelope, portfolioShare, onEdit, onDelet
                   onClick={onEdit}
                   sx={{
                     color: 'text.secondary',
-                    '&:hover': { color: 'primary.light', bgcolor: 'rgba(77, 107, 255, 0.1)' },
+                    '&:hover': { color: 'primary.main', bgcolor: 'rgba(198, 161, 91, 0.12)' },
                   }}
                 >
                   <EditIcon sx={{ fontSize: 15 }} />

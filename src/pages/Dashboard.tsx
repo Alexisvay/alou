@@ -471,12 +471,23 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           position: 'sticky',
           top: 0,
           zIndex: 1100,
-          transition: 'background-color 0.3s ease, backdrop-filter 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease',
-          bgcolor: isScrolled ? 'rgba(9, 13, 22, 0.82)' : 'transparent',
-          backdropFilter: isScrolled ? 'blur(14px)' : 'none',
-          WebkitBackdropFilter: isScrolled ? 'blur(14px)' : 'none',
-          borderBottom: isScrolled ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid transparent',
-          boxShadow: isScrolled ? '0 6px 24px rgba(0, 0, 0, 0.12)' : 'none',
+          transition: 'background 0.3s ease, backdrop-filter 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease',
+          ...(isScrolled
+            ? {
+                background: [
+                  'radial-gradient(circle at 20% 20%, rgba(198, 161, 91, 0.08), transparent 28%)',
+                  'radial-gradient(circle at 80% 30%, rgba(230, 201, 122, 0.06), transparent 24%)',
+                  'linear-gradient(180deg, #0d0f14 0%, #10141c 100%)',
+                ].join(', '),
+                backdropFilter: 'blur(14px)',
+                WebkitBackdropFilter: 'blur(14px)',
+                borderBottom: '1px solid rgba(198, 161, 91, 0.08)',
+                boxShadow: '0 6px 24px rgba(0, 0, 0, 0.2)',
+              }
+            : {
+                bgcolor: 'transparent',
+                borderBottom: '1px solid transparent',
+              }),
         }}
       >
         <Box px={{ xs: 2, sm: 4, md: 6 }} py={2} maxWidth={1100} mx="auto">
@@ -484,14 +495,15 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
             <Box display="flex" alignItems="center" gap={1.5}>
               <Box
                 component="img"
-                src="/logo-alou.png"
+                src="/favicon.svg"
                 alt="Alou"
                 sx={{
-                  width: 32,
-                  height: 32,
+                  width: 36,
+                  height: 36,
                   objectFit: 'contain',
                   display: 'block',
-                  transform: 'translateY(1px)',
+                  flexShrink: 0,
+                  background: 'transparent',
                 }}
               />
               <Typography variant="h4" fontWeight={700} color="text.primary">
@@ -514,9 +526,9 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
                     height: 30,
                     fontSize: '0.75rem',
                     fontWeight: 700,
-                    bgcolor: 'rgba(77, 107, 255, 0.25)',
-                    color: 'primary.light',
-                    border: '1px solid rgba(77, 107, 255, 0.35)',
+                    bgcolor: 'rgba(255, 255, 255, 0.1)',
+                    color: 'text.primary',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
                   }}
                 >
                   {avatarLetter}
@@ -572,19 +584,15 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         >
           <Stack alignItems="center" spacing={3}>
             <Box
+              component="img"
+              src="/logo-alou.png"
+              alt="Alou"
               sx={{
-                width: 64,
-                height: 64,
-                borderRadius: '50%',
-                bgcolor: 'rgba(77, 107, 255, 0.12)',
-                border: '1px solid rgba(77, 107, 255, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                width: 56,
+                height: 56,
+                objectFit: 'contain',
               }}
-            >
-              <AccountBalanceIcon sx={{ fontSize: 30, color: 'primary.light' }} />
-            </Box>
+            />
 
             <Box>
               <Typography variant="h5" fontWeight={700} mb={1}>
@@ -614,10 +622,10 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
                     py: 1.5,
                     borderRadius: 2,
                     bgcolor: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.08)',
                   }}
                 >
-                  <Typography variant="caption" color="primary.light" fontWeight={700} display="block" mb={0.5}>
+                  <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" mb={0.5}>
                     Étape {step}
                   </Typography>
                   <Typography variant="body2" fontWeight={500}>
@@ -670,8 +678,8 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
             pl: 2,
             pr: 1,
             py: 1.25,
-            borderLeft: '2px solid rgba(138, 158, 255, 0.28)',
-            bgcolor: 'rgba(77, 107, 255, 0.04)',
+            borderLeft: '2px solid rgba(255, 255, 255, 0.2)',
+            bgcolor: 'rgba(255, 255, 255, 0.03)',
             borderRadius: '0 10px 10px 0',
             display: 'flex',
             alignItems: 'flex-start',
@@ -721,13 +729,13 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
               width: 52,
               height: 52,
               borderRadius: '50%',
-              bgcolor: 'rgba(77, 107, 255, 0.1)',
-              border: '1px solid rgba(77, 107, 255, 0.2)',
+              bgcolor: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-              <AccountBalanceIcon sx={{ fontSize: 22, color: 'primary.light' }} />
+              <AccountBalanceIcon sx={{ fontSize: 22, color: 'text.secondary' }} />
             </Box>
             <Box>
               <Typography variant="body1" fontWeight={600} mb={0.75}>
@@ -824,13 +832,13 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
                 width: 52,
                 height: 52,
                 borderRadius: '50%',
-                bgcolor: 'rgba(77, 107, 255, 0.1)',
-                border: '1px solid rgba(77, 107, 255, 0.2)',
+                bgcolor: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <HistoryIcon sx={{ fontSize: 22, color: 'primary.light' }} />
+                <HistoryIcon sx={{ fontSize: 22, color: 'text.secondary' }} />
               </Box>
               <Box>
                 <Typography variant="body1" fontWeight={600} mb={0.75}>
@@ -877,14 +885,14 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
                             px: 0.875,
                             py: 0.25,
                             borderRadius: '5px',
-                            bgcolor: 'rgba(77, 107, 255, 0.1)',
-                            border: '1px solid rgba(77, 107, 255, 0.22)',
+                            bgcolor: 'rgba(255, 255, 255, 0.06)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
                           }}
                         >
-                          <TuneRoundedIcon sx={{ fontSize: 10, color: 'primary.light' }} />
+                          <TuneRoundedIcon sx={{ fontSize: 10, color: 'text.secondary' }} />
                           <Typography
                             variant="caption"
-                            sx={{ fontSize: '0.67rem', color: 'primary.light', lineHeight: 1, fontWeight: 500 }}
+                            sx={{ fontSize: '0.67rem', color: 'text.secondary', lineHeight: 1, fontWeight: 500 }}
                           >
                             Répartition personnalisée
                           </Typography>
@@ -899,7 +907,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
                             setEditingIncome(entry);
                             setIncomeDialogOpen(true);
                           }}
-                          sx={{ color: 'text.secondary', '&:hover': { color: 'primary.light', bgcolor: 'rgba(77, 107, 255, 0.1)' } }}
+                          sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main', bgcolor: 'rgba(198, 161, 91, 0.12)' } }}
                         >
                           <EditIcon sx={{ fontSize: 14 }} />
                         </IconButton>
@@ -970,7 +978,7 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
             right: 32,
             zIndex: 1000,
             '&:hover': {
-              boxShadow: '0px 6px 28px rgba(77, 107, 255, 0.5)',
+              boxShadow: '0px 6px 28px rgba(0, 0, 0, 0.4)',
               bgcolor: 'primary.light',
             },
           }}

@@ -8,7 +8,7 @@ interface PortfolioChartProps {
   envelopes: ComputedEnvelope[];
 }
 
-const COLORS = ['#3D5AFE', '#00BFA5', '#FF6B6B', '#FFB547', '#A78BFA', '#38BDF8'];
+const COLORS = ['#C6A15B', '#22C55E', '#64748B', '#94A3B8', '#A78BFA', '#06B6D4'];
 
 interface TooltipPayloadItem {
   name: string;
@@ -111,7 +111,7 @@ export default function PortfolioChart({ envelopes }: PortfolioChartProps) {
                 width: '100%',
               }}
             >
-              <Typography variant="h5" color="text.primary" display="block" lineHeight={1.1}>
+              <Typography variant="h5" color="primary.main" display="block" lineHeight={1.1}>
                 {formatCurrency(total)}
               </Typography>
               <Typography

@@ -8,17 +8,14 @@ import {
   TextField,
   Stack,
   Divider,
-  FormControlLabel,
-  Switch,
   Typography,
   Box,
   ToggleButtonGroup,
   ToggleButton,
-  IconButton,
 } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
 import { type Envelope } from '../types/envelope';
 import { type Asset } from '../types/asset';
+import AssetManagementDrawer from './AssetManagementDrawer';
 
 // ── Asset actions (multiple per envelope) ──────────────────────────────────────
 
@@ -28,7 +25,7 @@ export type AssetAction =
 
 type ValuationMode = 'manual' | 'asset';
 
-interface AssetRow {
+export interface AssetRow {
   id?: string;
   name: string;
   unitPrice: string;
@@ -72,10 +69,6 @@ function assetToRow(a: Asset): AssetRow {
   };
 }
 
-function emptyAssetRow(): AssetRow {
-  return { name: '', unitPrice: '', quantity: '', isFractional: false };
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function EnvelopeDialog({
@@ -93,6 +86,7 @@ export default function EnvelopeDialog({
 
   const [mode, setMode] = useState<ValuationMode>('manual');
   const [assetRows, setAssetRows] = useState<AssetRow[]>([]);
+  const [assetDrawerOpen, setAssetDrawerOpen] = useState(false);
 
   const isEditing = initialEnvelope != null;
 
@@ -126,20 +120,6 @@ export default function EnvelopeDialog({
   const set = (field: keyof EnvForm) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
-  };
-
-  const updateAssetRow = (index: number, updates: Partial<AssetRow>) => {
-    setAssetRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, ...updates } : row)),
-    );
-  };
-
-  const addAsset = () => {
-    setAssetRows((prev) => [...prev, emptyAssetRow()]);
-  };
-
-  const removeAsset = (index: number) => {
-    setAssetRows((prev) => prev.filter((_, i) => i !== index));
   };
 
   const validate = (): boolean => {
@@ -259,9 +239,9 @@ export default function EnvelopeDialog({
                   py: 0.75,
                 },
                 '& .MuiToggleButton-root.Mui-selected': {
-                  bgcolor: 'rgba(77, 107, 255, 0.2)',
-                  color: 'primary.light',
-                  '&:hover': { bgcolor: 'rgba(77, 107, 255, 0.28)' },
+                  background: 'linear-gradient(135deg, rgba(198, 161, 91, 0.2), rgba(230, 201, 122, 0.15))',
+                  color: 'primary.main',
+                  '&:hover': { background: 'linear-gradient(135deg, rgba(198, 161, 91, 0.28), rgba(230, 201, 122, 0.2))' },
                 },
               }}
             >
@@ -296,113 +276,50 @@ export default function EnvelopeDialog({
             />
           )}
 
-          {/* ── Asset mode: list of assets ────────────────────────────────────── */}
+          {/* ── Asset mode: compact summary + manage button ────────────────────── */}
           {mode === 'asset' && (
             <>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.5 }}>
                 La valeur de l'enveloppe est calculée automatiquement à partir des actifs liés.
               </Typography>
 
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.65rem' }}>
-                  Actifs liés
-                </Typography>
-                <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-                  {assetRows.map((row, idx) => (
-                    <Box
-                      key={row.id ?? `new-${idx}`}
-                      sx={{
-                        p: 1.5,
-                        borderRadius: 1.5,
-                        bgcolor: 'rgba(255,255,255,0.03)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                      }}
-                    >
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1} mb={1}>
-                        <TextField
-                          label="Nom"
-                          size="small"
-                          fullWidth
-                          value={row.name}
-                          onChange={(e) => updateAssetRow(idx, { name: e.target.value })}
-                          placeholder="ex: iShares Core S&P 500"
-                        />
-                        <IconButton
-                          size="small"
-                          onClick={() => removeAsset(idx)}
-                          sx={{ color: 'text.disabled', flexShrink: 0, mt: 0.5, '&:hover': { color: 'error.main' } }}
-                          aria-label="Supprimer l'actif"
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <TextField
-                          label="Prix unit. (€)"
-                          type="number"
-                          size="small"
-                          value={row.unitPrice}
-                          onChange={(e) => updateAssetRow(idx, { unitPrice: e.target.value })}
-                          inputProps={{ min: 0, step: 0.01 }}
-                          sx={{ flex: 1 }}
-                        />
-                        <TextField
-                          label="Quantité"
-                          type="number"
-                          size="small"
-                          value={row.quantity}
-                          onChange={(e) => updateAssetRow(idx, { quantity: e.target.value })}
-                          inputProps={{ min: 0, step: 0.001 }}
-                          sx={{ flex: 1 }}
-                        />
-                        <FormControlLabel
-                          sx={{ flexShrink: 0, mr: 0 }}
-                          control={
-                            <Switch
-                              size="small"
-                              checked={row.isFractional}
-                              onChange={(e) => updateAssetRow(idx, { isFractional: e.target.checked })}
-                            />
-                          }
-                          label={<Typography variant="caption" color="text.secondary">Fract.</Typography>}
-                        />
-                      </Stack>
-                    </Box>
-                  ))}
-                </Stack>
-
-                <Button
-                  size="small"
-                  color="inherit"
-                  onClick={addAsset}
-                  sx={{ mt: 1, fontSize: '0.78rem', color: 'text.secondary', px: 0, '&:hover': { color: 'primary.light', background: 'transparent' } }}
-                  disableRipple
-                >
-                  + Ajouter un actif
-                </Button>
-
-                {totalAssetValue > 0 && (
-                  <Box
-                    sx={{
-                      mt: 1.5,
-                      px: 1.5,
-                      py: 1.25,
-                      borderRadius: 1.5,
-                      bgcolor: 'rgba(255,255,255,0.03)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                    }}
-                  >
-                    <Typography variant="caption" color="text.disabled" display="block" mb={0.5}>
-                      Valeur totale
+              <Box
+                sx={{
+                  px: 1.5,
+                  py: 1.5,
+                  borderRadius: 1.5,
+                  bgcolor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                }}
+              >
+                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
+                  <Box>
+                    <Typography variant="caption" color="text.disabled" display="block">
+                      {assetRows.length} actif{assetRows.length !== 1 ? 's' : ''} lié{assetRows.length !== 1 ? 's' : ''}
                     </Typography>
-                    <Typography variant="body2" fontWeight={700} sx={{ color: 'primary.light', fontVariantNumeric: 'tabular-nums' }}>
+                    <Typography variant="body2" fontWeight={700} sx={{ color: 'primary.main', fontVariantNumeric: 'tabular-nums' }}>
                       {formatPrice(totalAssetValue)}
                     </Typography>
                   </Box>
-                )}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setAssetDrawerOpen(true)}
+                    sx={{ fontSize: '0.78rem', textTransform: 'none' }}
+                  >
+                    Gérer les actifs
+                  </Button>
+                </Box>
               </Box>
             </>
           )}
+
+          <AssetManagementDrawer
+            open={assetDrawerOpen}
+            onClose={() => setAssetDrawerOpen(false)}
+            assetRows={assetRows}
+            onUpdate={setAssetRows}
+          />
 
           {/* ── Target amount (always) ──────────────────────────────────────── */}
           <TextField

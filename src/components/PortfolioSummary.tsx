@@ -27,7 +27,7 @@ export default function PortfolioSummary({ envelopes }: PortfolioSummaryProps) {
         <Block
           label="Patrimoine total"
           value={formatCurrency(totalCurrent)}
-          valueColor="primary.light"
+          valueColor="primary.main"
           flex={2}
         />
         <Block
@@ -38,7 +38,7 @@ export default function PortfolioSummary({ envelopes }: PortfolioSummaryProps) {
         <Block
           label="Progression globale"
           value={`${progress.toFixed(1)} %`}
-          valueColor={progress >= 100 ? 'secondary.main' : 'text.primary'}
+          valueColor={progress >= 100 ? 'success.main' : 'text.primary'}
           flex={1}
         />
       </Stack>

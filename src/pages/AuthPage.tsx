@@ -60,14 +60,14 @@ export default function AuthPage({ onSignIn, onSignUp }: AuthPageProps) {
     >
       <Box width="100%" maxWidth={400}>
         {/* Brand */}
-        <Box textAlign="center" mb={4}>
+        <Box textAlign="center" mb={4} pt={2}>
           <Box
             component="img"
-            src="/logo-alou.png"
+            src="/favicon.svg"
             alt="Alou"
             sx={{
-              width: 48,
-              height: 48,
+              width: 64,
+              height: 'auto',
               objectFit: 'contain',
               display: 'block',
               mx: 'auto',

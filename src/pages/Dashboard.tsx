@@ -3,59 +3,29 @@ import {
   Box,
   Button,
   Typography,
-  Paper,
   Stack,
   Divider,
-  IconButton,
-  Tooltip,
   CircularProgress,
   Snackbar,
   Alert,
   Avatar,
   Menu,
   MenuItem,
-  Fab,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import CloseIcon from '@mui/icons-material/Close';
-import HistoryIcon from '@mui/icons-material/History';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
 import LogoutIcon from '@mui/icons-material/Logout';
-import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import DonutLargeIcon from '@mui/icons-material/DonutLarge';
-import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
-import EnvelopeCard from '../components/EnvelopeCard';
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-  type DragStartEvent,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  rectSortingStrategy,
-  useSortable,
-  arrayMove,
-  sortableKeyboardCoordinates,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { Outlet } from 'react-router-dom';
+import { type DragEndEvent } from '@dnd-kit/core';
+import { arrayMove } from '@dnd-kit/sortable';
 import IncomeDialog from '../components/IncomeDialog';
 import EnvelopeDialog, { type AssetAction } from '../components/EnvelopeDialog';
-import PortfolioChart from '../components/PortfolioChart';
-import PortfolioSummary from '../components/PortfolioSummary';
 import { mockEnvelopes } from '../data/mockEnvelopes';
 import { recalculateEnvelopes, type AllocationResult } from '../utils/calculateAllocation';
-import { type Envelope } from '../types/envelope';
+import { type Envelope, type ComputedEnvelope } from '../types/envelope';
 import { type IncomeEntry } from '../types/income';
 import { type Asset } from '../types/asset';
 import * as db from '../lib/db';
-import { formatCurrency, formatDate } from '../utils/format';
+import { formatCurrency } from '../utils/format';
 
 interface DashboardProps {
   userId: string;
@@ -63,40 +33,21 @@ interface DashboardProps {
   onSignOut: () => Promise<void>;
 }
 
-// ── Sortable card wrapper ──────────────────────────────────────────────────────
-// Defined outside Dashboard so it isn't recreated on every render.
-interface SortableCardProps {
-  envelope: import('../types/envelope').ComputedEnvelope;
-  portfolioShare?: number;
-  onEdit: () => void;
-  onDelete: () => void;
-}
-
-function SortableCard({ envelope, portfolioShare, onEdit, onDelete }: SortableCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: envelope.id,
-  });
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition: isDragging ? undefined : transition,
-        // The card itself becomes invisible while the DragOverlay clone is shown.
-        opacity: isDragging ? 0 : 1,
-        zIndex: isDragging ? 1 : undefined,
-      }}
-    >
-      <EnvelopeCard
-        envelope={envelope}
-        portfolioShare={portfolioShare}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        dragHandleProps={{ ...attributes, ...listeners } as React.HTMLAttributes<HTMLElement>}
-      />
-    </div>
-  );
+export interface DashboardContext {
+  envelopes: ComputedEnvelope[];
+  baseEnvelopes: Envelope[];
+  incomeHistory: IncomeEntry[];
+  assets: Asset[];
+  recommendation: { title: string; body: string } | null;
+  recommendationDismissed: boolean;
+  dismissRecommendation: () => void;
+  handleDragEnd: (event: DragEndEvent) => void;
+  onEditEnvelope: (envelope: Envelope) => void;
+  onDeleteEnvelope: (id: string) => void;
+  onAddEnvelope: () => void;
+  onDeclareIncome: () => void;
+  onEditIncome: (entry: IncomeEntry) => void;
+  onDeleteIncome: (id: string) => void;
 }
 
 export default function Dashboard({ userId, userEmail, onSignOut }: DashboardProps) {
@@ -134,23 +85,10 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
   const closeSnackbar = useCallback(() => setSnackbar((s) => ({ ...s, open: false })), []);
 
-  // ── Drag-and-drop ─────────────────────────────────────────────────────────
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  const handleDragStart = useCallback(({ active }: DragStartEvent) => {
-    setDraggingId(active.id as string);
-  }, []);
-
+  // ── Drag-and-drop handler (state lives in EnveloppesPage) ─────────────────
   const handleDragEnd = useCallback(({ active, over }: DragEndEvent) => {
-    setDraggingId(null);
     if (!over || active.id === over.id) return;
 
-    // Read the current list from the ref so we don't need it as a dependency.
     const current = baseEnvelopesRef.current;
     const oldIndex = current.findIndex((e) => e.id === active.id);
     const newIndex = current.findIndex((e) => e.id === over.id);
@@ -158,12 +96,8 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
     const reordered = arrayMove(current, oldIndex, newIndex).map((e, i) => ({ ...e, order: i }));
 
-    // Update UI state immediately (optimistic).
     setBaseEnvelopes(reordered);
 
-    // Persist outside the state updater — side effects must not live inside
-    // pure updater functions, and Supabase returns errors in the result object
-    // rather than throwing, so we check them explicitly here.
     db.updateEnvelopeOrders(
       userId,
       reordered.map(({ id, order }) => ({ id, order: order! })),
@@ -172,8 +106,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
   // ── Remote data state ─────────────────────────────────────────────────────
   const [baseEnvelopes, setBaseEnvelopes] = useState<Envelope[]>([]);
-  // Keep the latest baseEnvelopes in a ref so the DnD handlers can always read
-  // the current list without being listed as effect dependencies.
   const baseEnvelopesRef = useRef(baseEnvelopes);
   useEffect(() => { baseEnvelopesRef.current = baseEnvelopes; }, [baseEnvelopes]);
 
@@ -187,9 +119,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
     async function load() {
       setDataLoading(true);
       try {
-        // Envelopes and incomes load in parallel; assets are fetched afterwards
-        // using the envelope IDs so the filter works regardless of whether the
-        // assets table has a user_id column.
         const [envelopes, incomes] = await Promise.all([
           db.fetchEnvelopes(userId),
           db.fetchIncomes(userId),
@@ -198,7 +127,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
         let resolvedEnvelopes = envelopes;
         if (envelopes.length === 0) {
-          // Seed with fresh UUIDs only for brand-new accounts, then re-fetch.
           await Promise.all(mockEnvelopes.map((e) => db.upsertEnvelope(userId, e)));
           const seeded = await db.fetchEnvelopes(userId);
           if (!cancelled) {
@@ -229,8 +157,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
   }, [userId]);
 
   // ── Derived state ─────────────────────────────────────────────────────────
-  // Always sort by `order` before computing or rendering so the user-defined
-  // sequence is preserved everywhere (grid, chart, allocation, history).
   const sortedBaseEnvelopes = useMemo(
     () => [...baseEnvelopes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     [baseEnvelopes],
@@ -250,13 +176,11 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
     });
   }, [sortedBaseEnvelopes, incomeHistory, assets]);
 
-  // Single contextual recommendation evaluated in priority order.
   const recommendation = useMemo((): { title: string; body: string } | null => {
     if (envelopes.length === 0) return null;
 
     const portfolioTotal = envelopes.reduce((sum, e) => sum + e.currentAmount, 0);
 
-    // 0. All targets met
     if (envelopes.every((e) => e.currentAmount >= e.targetAmount)) {
       return {
         title: 'Tous les objectifs sont atteints',
@@ -264,7 +188,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       };
     }
 
-    // 1. At least one envelope has reached its target (but not all)
     const reached = envelopes.find((e) => e.targetAmount > 0 && e.currentAmount >= e.targetAmount);
     if (reached) {
       return {
@@ -273,7 +196,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       };
     }
 
-    // 2. An envelope is almost complete (> 80% progress)
     const open = envelopes.filter((e) => e.targetAmount > 0 && e.currentAmount < e.targetAmount);
     const almostDone = open
       .map((e) => ({ name: e.name, progress: e.currentAmount / e.targetAmount, remaining: e.targetAmount - e.currentAmount }))
@@ -286,7 +208,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       };
     }
 
-    // 3. Priority envelope (only meaningful with 2+ open envelopes)
     if (open.length >= 2) {
       const priority = open
         .map((e) => ({ name: e.name, remaining: e.targetAmount - e.currentAmount }))
@@ -297,7 +218,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
       };
     }
 
-    // 4. Portfolio concentration > 70%
     if (portfolioTotal > 0) {
       const concentrated = envelopes
         .map((e) => ({ name: e.name, pct: (e.currentAmount / portfolioTotal) * 100 }))
@@ -334,15 +254,8 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         if (!fresh) return;
 
         const entryInDb = fresh.find((e) => e.id === entry.id);
-        if (!entryInDb) {
-          // The entry was never written to the DB (e.g. network failure on a new entry).
-          // The optimistic local state already has the correct data — leave it alone.
-          return;
-        }
+        if (!entryInDb) return;
 
-        // The entry is in the DB but the re-fetched version may lack the
-        // isManualAllocation flag (e.g. the fallback array format was used).
-        // Restore the flag from the local entry we just applied.
         setIncomeHistory(
           fresh.map((e) =>
             e.id === entry.id ? { ...e, isManualAllocation: entry.isManualAllocation } : e,
@@ -377,7 +290,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         : (baseEnvelopes.find((e) => e.id === id)?.order ?? 0);
       const envelope: Envelope = { id, ...data, order };
 
-      // ── Optimistic updates ──────────────────────────────────────────────────
       setBaseEnvelopes((prev) => {
         const exists = prev.some((e) => e.id === id);
         return exists ? prev.map((e) => (e.id === id ? envelope : e)) : [...prev, envelope];
@@ -400,7 +312,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
 
       setSnackbar({ open: true, message: isNew ? 'Enveloppe créée' : 'Enveloppe modifiée' });
 
-      // ── Sequential DB writes: envelope first, then assets ────────────────────
       (async () => {
         try {
           await db.upsertEnvelope(userId, { ...data, order }, id);
@@ -453,6 +364,44 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
     setEditingEnvelope(null);
   }, []);
 
+  // ── Dialog open callbacks (passed to pages via context) ───────────────────
+  const onAddEnvelope = useCallback(() => {
+    setEditingEnvelope(null);
+    setEnvelopeDialogOpen(true);
+  }, []);
+
+  const onEditEnvelope = useCallback((envelope: Envelope) => {
+    setEditingEnvelope(envelope);
+    setEnvelopeDialogOpen(true);
+  }, []);
+
+  const onDeclareIncome = useCallback(() => {
+    setEditingIncome(null);
+    setIncomeDialogOpen(true);
+  }, []);
+
+  const onEditIncome = useCallback((entry: IncomeEntry) => {
+    setEditingIncome(entry);
+    setIncomeDialogOpen(true);
+  }, []);
+
+  // ── Outlet context ────────────────────────────────────────────────────────
+  const outletContext: DashboardContext = {
+    envelopes,
+    baseEnvelopes,
+    incomeHistory,
+    assets,
+    recommendation,
+    recommendationDismissed,
+    dismissRecommendation,
+    handleDragEnd,
+    onEditEnvelope,
+    onDeleteEnvelope: handleDeleteEnvelope,
+    onAddEnvelope,
+    onDeclareIncome,
+    onEditIncome,
+    onDeleteIncome: handleDeleteIncome,
+  };
 
   if (dataLoading) {
     return (
@@ -491,26 +440,26 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
         }}
       >
         <Box px={{ xs: 2, sm: 4, md: 6 }} py={2} maxWidth={1100} mx="auto">
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-            <Box display="flex" alignItems="center" gap={1.5}>
-              <Box
-                component="img"
-                src="/favicon.svg"
-                alt="Alou"
-                sx={{
-                  width: 36,
-                  height: 36,
-                  objectFit: 'contain',
-                  display: 'block',
-                  flexShrink: 0,
-                  background: 'transparent',
-                }}
-              />
-              <Typography variant="h4" fontWeight={600} color="text.primary">
-                Alou
-              </Typography>
-            </Box>
-
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            {/* Action buttons */}
+            <Stack direction="row" gap={1.5} alignItems="center">
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={onDeclareIncome}
+              >
+                Déclarer un revenu
+              </Button>
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={onAddEnvelope}
+              >
+                Nouvelle enveloppe
+              </Button>
+            </Stack>
             <Stack direction="row" gap={2} alignItems="center">
               {/* User menu */}
               <Stack
@@ -567,439 +516,13 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
               </Menu>
             </Stack>
           </Box>
-          <Typography variant="body2" color="text.secondary">
-            Gérez vos enveloppes d'investissement et répartissez vos revenus intelligemment.
-          </Typography>
         </Box>
       </Box>
 
-      {/* Page content */}
+      {/* Page content — rendered by child routes */}
       <Box px={{ xs: 2, sm: 4, md: 6 }} pt={5} pb={10} maxWidth={1100} mx="auto">
-
-      {/* Onboarding — shown only when the account is brand new */}
-      {baseEnvelopes.length === 0 && incomeHistory.length === 0 && (
-        <Paper
-          variant="outlined"
-          sx={{ p: { xs: 4, sm: 6 }, mb: 6, textAlign: 'center' }}
-        >
-          <Stack alignItems="center" spacing={3}>
-            <Box
-              component="img"
-              src="/logo-alou.png"
-              alt="Alou"
-              sx={{
-                width: 56,
-                height: 56,
-                objectFit: 'contain',
-              }}
-            />
-
-            <Box>
-              <Typography variant="h5" fontWeight={700} mb={1}>
-                Bienvenue dans Alou
-              </Typography>
-              <Typography variant="body2" color="text.secondary" maxWidth={480} mx="auto">
-                Commencez par configurer vos enveloppes d'investissement, puis déclarez vos revenus pour suivre votre progression vers vos objectifs.
-              </Typography>
-            </Box>
-
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={2}
-              justifyContent="center"
-              sx={{ width: '100%', maxWidth: 480 }}
-            >
-              {[
-                { step: '1', label: 'Créez vos enveloppes' },
-                { step: '2', label: 'Déclarez vos revenus' },
-                { step: '3', label: 'Suivez votre progression' },
-              ].map(({ step, label }) => (
-                <Box
-                  key={step}
-                  flex={1}
-                  sx={{
-                    px: 2,
-                    py: 1.5,
-                    borderRadius: 2,
-                    bgcolor: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" mb={0.5}>
-                    Étape {step}
-                  </Typography>
-                  <Typography variant="body2" fontWeight={500}>
-                    {label}
-                  </Typography>
-                </Box>
-              ))}
-            </Stack>
-
-            <Button
-              variant="contained"
-              size="large"
-              startIcon={<AddIcon />}
-              onClick={() => {
-                setEditingEnvelope(null);
-                setEnvelopeDialogOpen(true);
-              }}
-            >
-              Créer ma première enveloppe
-            </Button>
-          </Stack>
-        </Paper>
-      )}
-
-      {/* Portfolio summary */}
-      <PortfolioSummary envelopes={envelopes} />
-
-      {/* Section enveloppes — primary section */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mt={8} mb={2}>
-        <Typography variant="h6" fontWeight={600} display="flex" alignItems="center" gap={1}>
-          <AccountBalanceIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-          Enveloppes
-        </Typography>
-        <Button
-          size="small"
-          startIcon={<AddIcon />}
-          onClick={() => {
-            setEditingEnvelope(null);
-            setEnvelopeDialogOpen(true);
-          }}
-        >
-          Nouvelle enveloppe
-        </Button>
+        <Outlet context={outletContext} />
       </Box>
-
-      {recommendation && !recommendationDismissed && (
-        <Box
-          mb={2.5}
-          sx={{
-            pl: 2,
-            pr: 1,
-            py: 1.25,
-            borderLeft: '2px solid rgba(255, 255, 255, 0.2)',
-            bgcolor: 'rgba(255, 255, 255, 0.03)',
-            borderRadius: '0 10px 10px 0',
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 1,
-          }}
-        >
-          <Box>
-            <Typography
-              variant="caption"
-              color="text.disabled"
-              display="block"
-              mb={0.5}
-              sx={{ textTransform: 'uppercase', letterSpacing: '0.09em', fontSize: '0.6rem' }}
-            >
-              Recommandation
-            </Typography>
-            <Typography variant="body2" fontWeight={600} color="text.primary" lineHeight={1.4}>
-              {recommendation.title}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" display="block" mt={0.25}>
-              {recommendation.body}
-            </Typography>
-          </Box>
-          <Tooltip title="Fermer">
-            <IconButton
-              size="small"
-              onClick={dismissRecommendation}
-              sx={{
-                color: 'text.disabled',
-                flexShrink: 0,
-                mt: -0.25,
-                '&:hover': { color: 'text.secondary', bgcolor: 'rgba(255,255,255,0.05)' },
-              }}
-            >
-              <CloseIcon sx={{ fontSize: 14 }} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      )}
-
-      {/* Grille de cards / empty state */}
-      {baseEnvelopes.length === 0 ? (
-        <Paper variant="outlined" sx={{ py: { xs: 6, sm: 8 }, px: { xs: 3, sm: 6 } }}>
-          <Stack alignItems="center" spacing={2.5} textAlign="center">
-            <Box sx={{
-              width: 52,
-              height: 52,
-              borderRadius: '50%',
-              bgcolor: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <AccountBalanceIcon sx={{ fontSize: 22, color: 'text.secondary' }} />
-            </Box>
-            <Box>
-              <Typography variant="body1" fontWeight={600} mb={0.75}>
-                Aucune enveloppe configurée
-              </Typography>
-              <Typography variant="body2" color="text.secondary" maxWidth={340}>
-                Créez votre première enveloppe pour commencer à organiser votre portefeuille.
-              </Typography>
-            </Box>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => {
-                setEditingEnvelope(null);
-                setEnvelopeDialogOpen(true);
-              }}
-            >
-              Créer une enveloppe
-            </Button>
-          </Stack>
-        </Paper>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={envelopes.map((e) => e.id)} strategy={rectSortingStrategy}>
-            <Box
-              display="grid"
-              sx={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
-              gap={3}
-            >
-              {(() => {
-                const portfolioTotal = envelopes.reduce((sum, e) => sum + (Number(e.currentAmount) || 0), 0);
-                return envelopes.map((envelope) => (
-                  <SortableCard
-                    key={envelope.id}
-                    envelope={envelope}
-                    portfolioShare={portfolioTotal > 0 ? ((Number(envelope.currentAmount) || 0) / portfolioTotal) * 100 : undefined}
-                    onEdit={() => {
-                      setEditingEnvelope(envelope);
-                      setEnvelopeDialogOpen(true);
-                    }}
-                    onDelete={() => handleDeleteEnvelope(envelope.id)}
-                  />
-                ));
-              })()}
-            </Box>
-          </SortableContext>
-
-          {/* Floating card rendered at the pointer while dragging */}
-          <DragOverlay adjustScale={false} dropAnimation={{ duration: 180, easing: 'ease' }}>
-            {draggingId ? (() => {
-              const draggingEnvelope = envelopes.find((e) => e.id === draggingId);
-              if (!draggingEnvelope) return null;
-              const portfolioTotal = envelopes.reduce((sum, e) => sum + (Number(e.currentAmount) || 0), 0);
-              return (
-                <Box sx={{ transform: 'rotate(1.5deg)', boxShadow: '0 24px 60px rgba(0,0,0,0.55)', borderRadius: 3 }}>
-                  <EnvelopeCard
-                    envelope={draggingEnvelope}
-                    portfolioShare={portfolioTotal > 0 ? ((Number(draggingEnvelope.currentAmount) || 0) / portfolioTotal) * 100 : undefined}
-                  />
-                </Box>
-              );
-            })() : null}
-          </DragOverlay>
-        </DndContext>
-      )}
-
-      {/* Secondary sections — separated from primary content */}
-      <Divider sx={{ mt: 8, mb: 7, borderColor: 'rgba(255,255,255,0.05)' }} />
-
-      {/* Graphique de répartition */}
-      <Box>
-        <Typography variant="h6" fontWeight={600} display="flex" alignItems="center" gap={1} mb={2}>
-          <DonutLargeIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-          Répartition du portefeuille
-        </Typography>
-        <PortfolioChart envelopes={envelopes} />
-      </Box>
-
-      {/* Historique des revenus */}
-      <Box mt={8}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6" fontWeight={600} display="flex" alignItems="center" gap={1}>
-            <HistoryIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-            Historique des revenus
-          </Typography>
-          {incomeHistory.length > 0 && (
-            <Button
-              size="small"
-              startIcon={<AddIcon />}
-              onClick={() => {
-                setEditingIncome(null);
-                setIncomeDialogOpen(true);
-              }}
-            >
-              Déclarer un revenu
-            </Button>
-          )}
-        </Box>
-      {incomeHistory.length === 0 ? (
-          <Paper variant="outlined" sx={{ py: { xs: 6, sm: 8 }, px: { xs: 3, sm: 6 } }}>
-            <Stack alignItems="center" spacing={2.5} textAlign="center">
-              <Box sx={{
-                width: 52,
-                height: 52,
-                borderRadius: '50%',
-                bgcolor: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <HistoryIcon sx={{ fontSize: 22, color: 'text.secondary' }} />
-              </Box>
-              <Box>
-                <Typography variant="body1" fontWeight={600} mb={0.75}>
-                  Aucun revenu enregistré
-                </Typography>
-                <Typography variant="body2" color="text.secondary" maxWidth={340}>
-                  Déclarez votre premier revenu pour voir comment il se répartit dans vos enveloppes.
-                </Typography>
-              </Box>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => {
-                  setEditingIncome(null);
-                  setIncomeDialogOpen(true);
-                }}
-              >
-                Déclarer un revenu
-              </Button>
-            </Stack>
-          </Paper>
-        ) : (
-          <Paper variant="outlined" sx={{ px: 0, py: 0, overflow: 'hidden' }}>
-            <Stack divider={<Divider />} spacing={0}>
-              {incomeHistory.map((entry) => (
-                <Box key={entry.id} px={2.5} py={2.25}>
-
-                  {/* Entry header: amount + date + actions */}
-                  <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                    <Box>
-                      <Typography variant="body2" fontWeight={700} color="text.primary">
-                        {formatCurrency(entry.amount)}
-                      </Typography>
-                      <Typography variant="caption" color="text.disabled" display="block" mt={0.25}>
-                        {formatDate(entry.date)}
-                      </Typography>
-                      {entry.isManualAllocation && (
-                        <Box
-                          display="inline-flex"
-                          alignItems="center"
-                          gap={0.5}
-                          mt={0.75}
-                          sx={{
-                            px: 0.875,
-                            py: 0.25,
-                            borderRadius: '5px',
-                            bgcolor: 'rgba(255, 255, 255, 0.06)',
-                            border: '1px solid rgba(255, 255, 255, 0.12)',
-                          }}
-                        >
-                          <TuneRoundedIcon sx={{ fontSize: 10, color: 'text.secondary' }} />
-                          <Typography
-                            variant="caption"
-                            sx={{ fontSize: '0.67rem', color: 'text.secondary', lineHeight: 1, fontWeight: 500 }}
-                          >
-                            Répartition personnalisée
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-                    <Box display="flex" gap={0.25} flexShrink={0} mt={-0.25}>
-                      <Tooltip title="Modifier">
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setEditingIncome(entry);
-                            setIncomeDialogOpen(true);
-                          }}
-                          sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main', bgcolor: 'rgba(198, 161, 91, 0.12)' } }}
-                        >
-                          <EditIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Supprimer">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDeleteIncome(entry.id)}
-                          sx={{ color: 'text.secondary', '&:hover': { color: 'error.main', bgcolor: 'rgba(211, 47, 47, 0.08)' } }}
-                        >
-                          <DeleteIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-
-                  {/* Allocation breakdown */}
-                  {entry.allocations.length > 0 && (
-                    <Box
-                      mt={1.5}
-                      sx={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}
-                    >
-                      {[...entry.allocations]
-                        .sort((a, b) => b.allocatedAmount - a.allocatedAmount)
-                        .map(({ envelope, allocatedAmount }) => (
-                          <Box
-                            key={envelope.id}
-                            display="flex"
-                            justifyContent="space-between"
-                            alignItems="center"
-                            pt={1}
-                          >
-                            <Typography variant="caption" color="text.secondary">
-                              {envelope.name}
-                            </Typography>
-                            <Typography
-                              variant="caption"
-                              fontWeight={600}
-                              color="text.primary"
-                              sx={{ fontVariantNumeric: 'tabular-nums' }}
-                            >
-                              {formatCurrency(allocatedAmount)}
-                            </Typography>
-                          </Box>
-                        ))}
-                    </Box>
-                  )}
-
-                </Box>
-              ))}
-            </Stack>
-          </Paper>
-        )}
-      </Box>
-
-      {/* FAB — Déclarer un revenu */}
-      <Tooltip title="Déclarer un revenu" placement="left">
-        <Fab
-          color="primary"
-          aria-label="Déclarer un revenu"
-          onClick={() => {
-            setEditingIncome(null);
-            setIncomeDialogOpen(true);
-          }}
-          sx={{
-            position: 'fixed',
-            bottom: 32,
-            right: 32,
-            zIndex: 1000,
-            '&:hover': {
-              boxShadow: '0px 6px 28px rgba(0, 0, 0, 0.4)',
-              bgcolor: 'primary.light',
-            },
-          }}
-        >
-          <AddIcon />
-        </Fab>
-      </Tooltip>
 
       {/* Income dialog */}
       <IncomeDialog
@@ -1031,7 +554,6 @@ export default function Dashboard({ userId, userEmail, onSignOut }: DashboardPro
           {snackbar.message}
         </Alert>
       </Snackbar>
-      </Box>
     </>
   );
 }
